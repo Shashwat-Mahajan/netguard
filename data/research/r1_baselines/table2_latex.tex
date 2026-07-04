@@ -1,0 +1,16 @@
+\begin{table}[h]
+\centering
+\caption{Model comparison on NSL-KDD dataset}
+\label{tab:baseline}
+\begin{tabular}{lccccc}
+\hline
+\textbf{Model} & \textbf{Accuracy} & \textbf{Macro F1} & \textbf{Precision} & \textbf{Recall} & \textbf{Time} \\
+\hline
+\textbf{XGBoost (proposed)} & 0.9992 & 0.9717 & 0.9703 & 0.9731 & 29.1s \\
+Random Forest & 0.9993 & 0.9574 & 0.9696 & 0.9466 & 7.8s \\
+Decision Tree & 0.9982 & 0.9452 & 0.9859 & 0.9222 & 2.1s \\
+MLP & 0.9934 & 0.8765 & 0.8866 & 0.8676 & 58.4s \\
+SVM & 0.4566 & 0.3745 & 0.5381 & 0.5123 & 288.6s \\
+\hline
+\end{tabular}
+\end{table}

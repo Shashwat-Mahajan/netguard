@@ -1,0 +1,19 @@
+\begin{table}[h]
+\centering
+\caption{End-to-end pipeline latency with NIM incident reporting}
+\label{tab:latency}
+\begin{tabular}{lccccc}
+\hline
+\textbf{Flow Type} & \textbf{Predicted} & \textbf{XGBoost} & \textbf{SHAP} & \textbf{NIM API} & \textbf{Total} \\
+ & & \textbf{(ms)} & \textbf{(ms)} & \textbf{(ms)} & \textbf{(ms)} \\
+\hline
+DoS SYN Flood & DoS $\checkmark$ & 33.2 & 22340.32 & 2618 & 24991 \\
+Port Scan (Probe) & DoS $\times$ & 8.07 & 605.12 & 1474 & 2087 \\
+Benign HTTPS & DoS $\times$ & 17.92 & 680.81 & 2563 & 3262 \\
+Brute Force SSH (R2L) & DoS $\times$ & 3.65 & 601.68 & 3707 & 4312 \\
+DDoS Attack & DoS $\checkmark$ & 5.76 & 588.76 & 1910 & 2505 \\
+\hline
+\textbf{Average} & & & & 2454 & 7431 \\
+\hline
+\end{tabular}
+\end{table}

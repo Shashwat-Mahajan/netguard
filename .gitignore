@@ -1,0 +1,26 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Data (too large for GitHub)
+data/raw/
+data/processed/*.npy
+data/processed/*.parquet
+data/processed/*.joblib
+
+# Logs
+logs/
+*.log
+
+# Research outputs (keep figures, ignore large files)
+data/research/*/results.json
+
+# Docker volumes
+*.sql
+
+# OS
+.DS_Store
+desktop.ini

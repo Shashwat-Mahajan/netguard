@@ -1,0 +1,210 @@
+"""
+processor/cicids_parquet_loader.py
+Loader for the dhoogla/cicids2017 Kaggle parquet format.
+
+This is a pre-cleaned version of CICIDS2017 with correct dtypes and
+no missing values. Column names are close to but not identical to
+the original CICIDS2017 CSV format, so we map them to our canonical
+39-feature schema here.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+from config.logger import get_logger
+from config.settings import settings
+from processor.feature_schema import FlowFeatures
+
+log = get_logger(__name__)
+
+# ── Column mapping: dhoogla parquet name -> canonical schema name ─────────────
+PARQUET_RENAME: dict[str, str] = {
+    "Protocol":                    "protocol",
+    "Flow Duration":                "duration",
+    "Total Fwd Packets":            "fwd_packet_count",
+    "Total Backward Packets":       "bwd_packet_count",
+    "Fwd Packets Length Total":     "total_fwd_bytes",
+    "Bwd Packets Length Total":     "total_bwd_bytes",
+    "Fwd Packet Length Max":        "fwd_packet_len_max",
+    "Fwd Packet Length Min":        "fwd_packet_len_min",
+    "Fwd Packet Length Mean":       "fwd_packet_len_mean",
+    "Fwd Packet Length Std":        "fwd_packet_len_std",
+    "Bwd Packet Length Max":        "bwd_packet_len_max",
+    "Bwd Packet Length Min":        "bwd_packet_len_min",
+    "Bwd Packet Length Mean":       "bwd_packet_len_mean",
+    "Bwd Packet Length Std":        "bwd_packet_len_std",
+    "Flow Bytes/s":                 "flow_bytes_per_sec",
+    "Flow Packets/s":               "flow_packets_per_sec",
+    "Flow IAT Mean":                "flow_iat_mean",
+    "Flow IAT Std":                 "flow_iat_std",
+    "Flow IAT Max":                 "flow_iat_max",
+    "Flow IAT Min":                 "flow_iat_min",
+    "Fwd IAT Mean":                 "fwd_iat_mean",
+    "Fwd IAT Std":                  "fwd_iat_std",
+    "Bwd IAT Mean":                 "bwd_iat_mean",
+    "Bwd IAT Std":                  "bwd_iat_std",
+    "Fwd PSH Flags":                "fwd_psh_flags",
+    "Bwd PSH Flags":                "bwd_psh_flags",
+    "Fwd URG Flags":                "fwd_urg_flags",
+    "Bwd URG Flags":                "bwd_urg_flags",
+    "Fwd Header Length":            "fwd_header_len",
+    "Bwd Header Length":            "bwd_header_len",
+    "Fwd Packets/s":                "fwd_packets_per_sec",
+    "Bwd Packets/s":                "bwd_packets_per_sec",
+    "FIN Flag Count":               "fin_flag_count",
+    "SYN Flag Count":               "syn_flag_count",
+    "RST Flag Count":               "rst_flag_count",
+    "PSH Flag Count":               "psh_flag_count",
+    "ACK Flag Count":               "ack_flag_count",
+    "Init Fwd Win Bytes":           "fwd_win_bytes",
+    "Init Bwd Win Bytes":           "bwd_win_bytes",
+    "Label":                        "label",
+}
+
+PARQUET_FILES = [
+    "Benign-Monday-no-metadata.parquet",
+    "Botnet-Friday-no-metadata.parquet",
+    "Bruteforce-Tuesday-no-metadata.parquet",
+    "DDoS-Friday-no-metadata.parquet",
+    "DoS-Wednesday-no-metadata.parquet",
+    "Infiltration-Thursday-no-metadata.parquet",
+    "Portscan-Friday-no-metadata.parquet",
+    "WebAttacks-Thursday-no-metadata.parquet",
+]
+
+
+class CICIDS2017ParquetLoader:
+    """
+    Load the dhoogla/cicids2017 Kaggle parquet files into a single
+    DataFrame matching our canonical 39-feature schema.
+    """
+
+    PARQUET_CACHE = "cicids2017_parquet_combined.parquet"
+
+    def __init__(self, raw_dir: Path = settings.data_raw_dir / "cicids2017") -> None:
+        self._raw_dir = Path(raw_dir)
+        self._cache = settings.data_processed_dir / self.PARQUET_CACHE
+
+    def load(self, use_cache: bool = True) -> pd.DataFrame:
+        if use_cache and self._cache.exists():
+            log.info("dataset.cicids_parquet.cache_hit", path=str(self._cache))
+            return pd.read_parquet(self._cache)
+
+        files = [self._raw_dir / f for f in PARQUET_FILES if (self._raw_dir / f).exists()]
+        if not files:
+            files = list(self._raw_dir.glob("*.parquet"))
+
+        if not files:
+            raise FileNotFoundError(
+                f"No parquet files found in {self._raw_dir}. "
+                "Run: kaggle datasets download dhoogla/cicids2017 -p data/raw/cicids2017 --unzip"
+            )
+
+        chunks: list[pd.DataFrame] = []
+        for path in files:
+            log.info("dataset.cicids_parquet.loading", file=path.name)
+            df = self._load_single(path)
+            chunks.append(df)
+            log.info(
+                "dataset.cicids_parquet.loaded",
+                file=path.name,
+                rows=len(df),
+                label_dist=df["label"].value_counts().to_dict(),
+            )
+
+        combined = pd.concat(chunks, ignore_index=True)
+        combined = self._postprocess(combined)
+
+        log.info(
+            "dataset.cicids_parquet.combined",
+            total_rows=len(combined),
+            label_dist=combined["label_encoded"].value_counts().to_dict(),
+        )
+
+        combined.to_parquet(self._cache, index=False)
+        log.info("dataset.cicids_parquet.cached", path=str(self._cache))
+        return combined
+
+    def _load_single(self, path: Path) -> pd.DataFrame:
+        df = pd.read_parquet(path)
+        df = df.rename(columns=PARQUET_RENAME)
+
+        keep = FlowFeatures.ML_FEATURES + ["label"]
+        existing = [c for c in keep if c in df.columns]
+        df = df[existing].copy()
+        return df
+
+    def _postprocess(self, df: pd.DataFrame) -> pd.DataFrame:
+        df["label_clean"] = df["label"].astype(str).str.strip().str.lower()
+
+        label_overrides = {
+            "benign":                       "benign",
+            "ddos":                         "dos",
+            "dos hulk":                     "dos",
+            "dos goldeneye":                "dos",
+            "dos slowloris":                "dos",
+            "dos slowhttptest":             "dos",
+            "heartbleed":                   "dos",
+            "botnet":                       "u2r",
+            "bot":                          "u2r",
+            "portscan":                     "probe",
+            "ftp-patator":                  "r2l",
+            "ssh-patator":                  "r2l",
+            "brute force -web":             "r2l",
+            "brute force -xss":             "r2l",
+            "sql injection":                "u2r",
+            "infiltration":                 "u2r",
+            "web attack - brute force":     "r2l",
+            "web attack - xss":             "r2l",
+            "web attack - sql injection":   "u2r",
+        }
+
+        def map_label(raw: str) -> int:
+            import re
+            # Normalise: replace any non-alphanumeric separator
+            # (corrupted chars, multiple spaces, unicode replacement char)
+            # e.g. "web attack   brute force" -> "web attack - brute force"
+            normalised = re.sub(r"[\s\ufffd\x00-\x1f]+", " ", raw).strip()
+            normalised = re.sub(r"\s{2,}", " - ", normalised)
+
+            key = label_overrides.get(normalised, normalised)
+
+            # Always apply substring fallback for web attack variants
+            if "web attack" in normalised:
+                if "brute force" in normalised or "bf" in normalised:
+                    return FlowFeatures.LABEL_MAP.get("r2l", -1)
+                elif "xss" in normalised:
+                    return FlowFeatures.LABEL_MAP.get("r2l", -1)
+                elif "sql" in normalised:
+                    return FlowFeatures.LABEL_MAP.get("u2r", -1)
+
+            return FlowFeatures.LABEL_MAP.get(key, -1)
+
+        df["label_encoded"] = df["label_clean"].apply(map_label)
+
+        for col in FlowFeatures.ML_FEATURES:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        df.replace([np.inf, -np.inf], np.nan, inplace=True)
+        for col in FlowFeatures.ML_FEATURES:
+            if col in df.columns:
+                median = df[col].median()
+                df[col] = df[col].fillna(median if not pd.isna(median) else 0.0)
+
+        for col in ["flow_bytes_per_sec", "flow_packets_per_sec",
+                    "fwd_packets_per_sec", "bwd_packets_per_sec"]:
+            if col in df.columns:
+                cap = df[col].quantile(0.9999)
+                df[col] = df[col].clip(upper=cap)
+
+        unmapped = df[df["label_encoded"] < 0]["label_clean"].unique()
+        if len(unmapped) > 0:
+            log.warning("dataset.cicids_parquet.unmapped_labels", labels=list(unmapped))
+
+        df = df[df["label_encoded"] >= 0].copy()
+        return df

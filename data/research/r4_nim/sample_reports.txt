@@ -1,0 +1,112 @@
+NetGuard — Sample Incident Reports (R4)
+============================================================
+
+Alert: DoS SYN Flood
+Predicted: DoS (✓) Confidence: 96.8%
+Latency: XGBoost=33.2ms  SHAP=22340.32ms  NIM=2617.92ms  Total=24991.44ms
+
+Top SHAP features:
+  flow_bytes_per_sec                  +1.7284
+  fwd_packet_count                    +1.6537
+  flow_packets_per_sec                +1.2759
+  syn_flag_count                      -0.8559
+  bwd_packet_count                    -0.6557
+
+Incident Report:
+**Incident Report: Denial of Service (DoS) Attack**
+
+**Executive Summary:** A Denial of Service (DoS) attack was detected against the web server at IP address 192.168.1.100, with a high confidence level of 96.8%, indicating a significant security threat.
+
+**Technical Analysis:** The alert was triggered by increased suspicion from features such as flow_bytes_per_sec, fwd_packet_count, and flow_packets_per_sec, indicating a high volume of traffic in a short period. Additionally, the low values for syn_flag_count, bwd_packet_count, and fwd_packets_per_sec suggest a lack of legitimate traffic, further supporting the DoS attack hypothesis. The high value for bwd_packet_len_mean indicates a large number of packets being sent, contributing to the attack's severity.
+
+**Recommended Action:** Immediately block the source IP address 10.0.0.1:12345 to prevent further attacks and investigate the source of the malicious traffic to prevent future incidents.
+
+------------------------------------------------------------
+
+Alert: Port Scan (Probe)
+Predicted: DoS (✗) Confidence: 87.6%
+Latency: XGBoost=8.07ms  SHAP=605.12ms  NIM=1473.58ms  Total=2086.77ms
+
+Top SHAP features:
+  flow_bytes_per_sec                  +2.7128
+  flow_packets_per_sec                +1.2208
+  fwd_packet_len_min                  -0.7734
+  bwd_packet_len_mean                 +0.6154
+  syn_flag_count                      -0.5922
+
+Incident Report:
+**Incident Report**
+
+**Executive Summary:** A Denial of Service (DoS) attack was detected on the network, targeting the SSH service on 192.168.1.1 with a high confidence level of 87.6%.
+
+**Technical Analysis:** The alert was triggered by an increase in flow bytes per second and packets per second, indicating a sudden surge in traffic. The SHAP features also suggest that the attacker sent a series of small packets (decreased suspicion in fwd_packet_len_min) and no response was received (bwd_packet_count decreased suspicion), consistent with a DoS attack. The increased suspicion in bwd_packet_len_mean and flow_bytes_per_sec further supports this conclusion.
+
+**Recommended Action:** The analyst should immediately block the source IP 172.16.0.5 and monitor the affected system for any further activity. Additionally, the analyst should notify the network operations team to take preventive measures to mitigate future DoS attacks.
+
+------------------------------------------------------------
+
+Alert: Benign HTTPS
+Predicted: DoS (✗) Confidence: 90.8%
+Latency: XGBoost=17.92ms  SHAP=680.81ms  NIM=2563.27ms  Total=3262.0ms
+
+Top SHAP features:
+  flow_bytes_per_sec                  +2.4786
+  flow_packets_per_sec                +1.3171
+  fwd_packet_len_min                  -0.7714
+  syn_flag_count                      -0.6385
+  bwd_packet_len_mean                 +0.6352
+
+Incident Report:
+**Incident Report: Denial of Service (DoS) Attack**
+
+**Executive Summary:** A Denial of Service (DoS) attack was detected, targeting the Google public DNS server (8.8.8.8) with a high confidence level of 90.8%, posing a moderate to high severity threat to network availability.
+
+**Technical Analysis:** The alert was triggered by an increase in flow bytes per second (SHAP=+2.4786) and packets per second (SHAP=+1.3171), indicating a high volume of traffic. Additionally, the protocol (SHAP=+0.3686) and increased packet length in the backward direction (SHAP=+0.6352) contributed to the alert, suggesting a potential amplification attack. The decreased SYN flag count (SHAP=-0.6385) and packet length in the forward direction (SHAP=-0.7714) may indicate a spoofed source IP.
+
+**Recommended Action:** Immediately block the source IP (192.168.1.10:54321) to prevent further traffic and investigate the source of the attack to prevent future incidents.
+
+------------------------------------------------------------
+
+Alert: Brute Force SSH (R2L)
+Predicted: DoS (✗) Confidence: 93.7%
+Latency: XGBoost=3.65ms  SHAP=601.68ms  NIM=3706.74ms  Total=4312.07ms
+
+Top SHAP features:
+  fwd_packet_count                    +1.6536
+  flow_bytes_per_sec                  +1.3936
+  flow_packets_per_sec                +1.2239
+  syn_flag_count                      -0.8716
+  duration                            -0.8536
+
+Incident Report:
+**Incident Report**
+
+**Executive Summary:** A Denial of Service (DoS) attack was detected against a critical server (192.168.1.50:22) with a confidence level of 93.7%, posing a high risk to system availability.
+
+**Technical Analysis:** The alert was triggered by increased suspicion in features such as fwd_packet_count (+1.6536), flow_bytes_per_sec (+1.3936), and flow_packets_per_sec (+1.2239), indicating a high volume of packets being sent to the server. Conversely, features like syn_flag_count (-0.8716) and duration (-0.8536) showed decreased suspicion, suggesting a potential TCP SYN flood attack. The increased suspicion in bwd_packet_len_mean (+0.5490) further supports this conclusion.
+
+**Recommended Action:** Immediately block the source IP (45.33.32.156:49152) and investigate the server's logs for potential impact.
+
+------------------------------------------------------------
+
+Alert: DDoS Attack
+Predicted: DoS (✓) Confidence: 96.8%
+Latency: XGBoost=5.76ms  SHAP=588.76ms  NIM=1910.37ms  Total=2504.89ms
+
+Top SHAP features:
+  flow_bytes_per_sec                  +1.7284
+  fwd_packet_count                    +1.6537
+  flow_packets_per_sec                +1.2759
+  syn_flag_count                      -0.8559
+  bwd_packet_count                    -0.6557
+
+Incident Report:
+**Incident Report: Denial of Service (DoS) Attack**
+
+**Executive Summary:** A Denial of Service (DoS) attack has been detected, targeting the internal server 192.168.1.1:443 with a high confidence level of 96.8%, posing a moderate to high severity risk to network availability.
+
+**Technical Analysis:** The alert was triggered by increased suspicion in flow_bytes_per_sec, fwd_packet_count, and flow_packets_per_sec, indicating a high volume of traffic sent to the destination IP in a short duration. Conversely, decreased suspicion in syn_flag_count, bwd_packet_count, and fwd_packet_len_min suggests a lack of legitimate TCP handshake attempts and smaller packet sizes, further supporting the DoS attack hypothesis.
+
+**Recommended Action:** The analyst should immediately investigate the source IP 185.220.101.45:80 and block the IP to prevent further attacks. Additionally, the analyst should monitor the affected server for any potential impact and consider implementing rate limiting or IP blocking measures to prevent future DoS attacks.
+
+------------------------------------------------------------

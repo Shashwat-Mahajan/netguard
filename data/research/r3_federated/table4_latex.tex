@@ -1,0 +1,15 @@
+\begin{table}[h]
+\centering
+\caption{Federated vs centralised XGBoost on NSL-KDD}
+\label{tab:federated}
+\begin{tabular}{lcccc}
+\hline
+\textbf{Method} & \textbf{Macro F1} & \textbf{Accuracy} & \textbf{Data Shared} & \textbf{Nodes} \\
+\hline
+Centralised XGBoost & 0.9717 & -- & Full dataset & 1 \\
+Federated XGBoost (ours) & 0.9730 & 0.9992 & Weights only & 3 \\
+\hline
+\multicolumn{5}{l}{Performance gap: -0.0013 (-0.1\% degradation)} \\
+\hline
+\end{tabular}
+\end{table}

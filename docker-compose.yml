@@ -1,0 +1,109 @@
+version: "3.9"
+
+# ── NetGuard Phase 1 stack ────────────────────────────────────────────────────
+#
+#  Services:
+#    api      — FastAPI application (non-root, exposes :8000)
+#    zeek     — Zeek IDS passive monitor (root, host network)
+#    grafana  — Grafana OSS dashboard (pre-wired to Prometheus)
+#    prometheus — Metrics scraper
+#
+#  Volumes:
+#    zeek-logs  — shared between zeek and api containers
+#    prom-data  — Prometheus TSDB persistence
+#    grafana-data — Grafana persistence
+
+services:
+
+  # ── FastAPI application ────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: netguard-api:phase1
+    container_name: netguard-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - zeek-logs:/app/zeek_logs:ro
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - netguard
+
+  # ── Zeek IDS (requires host network + CAP_NET_RAW) ────────────────────────
+  zeek:
+    build:
+      context: .
+      dockerfile: docker/zeek.Dockerfile
+    image: netguard-zeek:phase1
+    container_name: netguard-zeek
+    restart: unless-stopped
+    network_mode: host          # Required for raw packet capture
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    volumes:
+      - zeek-logs:/opt/zeek/logs
+    command: ["${CAPTURE_INTERFACE:-eth0}", "/usr/local/zeek/share/zeek/site/local.zeek"]
+
+  # ── Prometheus ─────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: netguard-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prom-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+    networks:
+      - netguard
+
+  # ── Grafana ────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana-oss:10.4.2
+    container_name: netguard-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=netguard-dev
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - netguard
+
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
+volumes:
+  zeek-logs:
+  prom-data:
+  grafana-data:
+
+
+# ── Networks ──────────────────────────────────────────────────────────────────
+networks:
+  netguard:
+    driver: bridge

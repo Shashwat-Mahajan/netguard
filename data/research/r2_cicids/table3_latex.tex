@@ -1,0 +1,15 @@
+\begin{table}[h]
+\centering
+\caption{Cross-dataset generalisation results}
+\label{tab:cross_dataset}
+\begin{tabular}{lcc}
+\hline
+\textbf{Train} $\rightarrow$ \textbf{Test} & \textbf{Macro F1} & \textbf{Accuracy} \\
+\hline
+NSL-KDD $\rightarrow$ NSL-KDD (native) & 0.9717 & -- \\
+CICIDS2017 $\rightarrow$ CICIDS2017 (native) & 0.9159 & 0.9985 \\
+NSL-KDD -> CICIDS2017 & 0.1715 & 0.6367 \\
+CICIDS2017 -> NSL-KDD & 0.1393 & 0.5344 \\
+\hline
+\end{tabular}
+\end{table}

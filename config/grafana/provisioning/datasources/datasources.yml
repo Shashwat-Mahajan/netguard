@@ -1,0 +1,27 @@
+apiVersion: 1
+
+datasources:
+  # ── Prometheus ──────────────────────────────────────────────
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: false
+    editable: true
+    jsonData:
+      timeInterval: "15s"
+
+  # ── ClickHouse ──────────────────────────────────────────────
+  - name: ClickHouse
+    type: grafana-clickhouse-datasource
+    access: proxy
+    isDefault: true
+    editable: true
+    jsonData:
+      host:     clickhouse
+      port:     9000
+      username: netguard
+      database: netguard
+      protocol: native
+    secureJsonData:
+      password: netguard123
