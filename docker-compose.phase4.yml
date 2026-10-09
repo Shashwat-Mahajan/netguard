@@ -1,35 +1,21 @@
-version: "3.9"
-
-# ── NetGuard Phase 4 stack ────────────────────────────────────
-#
-#  Services:
-#    clickhouse  — columnar time-series DB for flow storage
-#    grafana     — SOC dashboard (http://localhost:3000)
-#    prometheus  — metrics scraper (http://localhost:9090)
-#
-#  The FastAPI app runs outside Docker (uvicorn command)
-#  and writes to ClickHouse via the clickhouse-driver.
-#
-#  Start everything:
-#    docker compose -f docker-compose.phase4.yml up -d
-#
-#  Stop everything:
-#    docker compose -f docker-compose.phase4.yml down
+# NetGuard Phase 4 stack: clickhouse + prometheus + grafana
+# Requires a .env file (see .env.example).
+#   Start: docker compose -f docker-compose.phase4.yml up -d
+#   Stop:  docker compose -f docker-compose.phase4.yml down
 
 services:
 
-  # ── ClickHouse ───────────────────────────────────────────────
   clickhouse:
     image: clickhouse/clickhouse-server:24.3-alpine
     container_name: netguard-clickhouse
     restart: unless-stopped
     ports:
-      - "8123:8123"   # HTTP interface (used by driver)
-      - "9000:9000"   # Native TCP interface
+      - "127.0.0.1:8123:8123"
+      - "127.0.0.1:9000:9000"
     environment:
-      CLICKHOUSE_DB:       netguard
-      CLICKHOUSE_USER:     netguard
-      CLICKHOUSE_PASSWORD: netguard123
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-netguard}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-netguard}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?Set CLICKHOUSE_PASSWORD in .env}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     volumes:
       - clickhouse-data:/var/lib/clickhouse
@@ -39,7 +25,7 @@ services:
         soft: 262144
         hard: 262144
     healthcheck:
-      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8123/ping || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -47,13 +33,12 @@ services:
     networks:
       - netguard
 
-  # ── Prometheus ───────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v2.52.0
     container_name: netguard-prometheus
     restart: unless-stopped
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
@@ -65,19 +50,18 @@ services:
     networks:
       - netguard
 
-  # ── Grafana ──────────────────────────────────────────────────
   grafana:
     image: grafana/grafana-oss:10.4.2
     container_name: netguard-grafana
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
-      GF_SECURITY_ADMIN_USER:     admin
-      GF_SECURITY_ADMIN_PASSWORD: netguard
-      GF_AUTH_ANONYMOUS_ENABLED:  false
-      GF_INSTALL_PLUGINS:         grafana-clickhouse-datasource
-      GF_SERVER_ROOT_URL:         http://localhost:3000
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+      GF_SERVER_ROOT_URL: http://localhost:3000
     volumes:
       - grafana-data:/var/lib/grafana
       - ./config/grafana/provisioning:/etc/grafana/provisioning:ro

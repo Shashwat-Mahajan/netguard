@@ -21,11 +21,9 @@ from __future__ import annotations
 
 import threading
 import time
-from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Callable
 
-import numpy as np
 
 from capture.feature_extractor import FlowFeatureExtractor
 from config.logger import get_logger
@@ -230,7 +228,7 @@ class PacketCapture:
 
     def _handle_packet(self, pkt) -> None:
         try:
-            from scapy.layers.inet import IP, TCP, UDP, ICMP  # type: ignore
+            from scapy.layers.inet import IP, TCP, UDP  # type: ignore
 
             if not pkt.haslayer(IP):
                 return

@@ -89,7 +89,7 @@ def train_xgboost(
 
     # Full test set evaluation
     banner("Step 3 — Test set evaluation")
-    test_metrics = clf.evaluate(X_test, y_test, split="test")
+    clf.evaluate(X_test, y_test, split="test")
 
     # Feature importance
     banner("Step 4 — Top 10 most important features")
@@ -229,7 +229,7 @@ def main() -> None:
     clf = train_xgboost(X_train, X_val, X_test, y_train, y_val, y_test, args.dataset)
 
     # Train Isolation Forest
-    det = train_anomaly_detector(X_train, y_train, X_test, y_test, args.dataset)
+    train_anomaly_detector(X_train, y_train, X_test, y_test, args.dataset)
 
     # SHAP explainability
     if not args.skip_shap:

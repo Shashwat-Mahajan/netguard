@@ -9,7 +9,6 @@ sys.path.insert(0, ".")
 
 import numpy as np
 import pytest
-from pathlib import Path
 from config.settings import settings
 
 
@@ -51,7 +50,7 @@ def test_xgboost_predict_batch():
     labels, confs = clf.predict_batch(X)
     assert len(labels) == 10
     assert len(confs) == 10
-    assert all(0 <= l <= 4 for l in labels)
+    assert all(0 <= lab <= 4 for lab in labels)
     assert all(0.0 <= c <= 1.0 for c in confs)
 
 
@@ -153,4 +152,3 @@ def test_full_pipeline():
     assert 0 <= code <= 4
     assert conf > 0.0
     assert len(probs) == 5
-

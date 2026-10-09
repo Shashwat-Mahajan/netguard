@@ -17,7 +17,10 @@ Usage:
 """
 
 from __future__ import annotations
-import json, sys, time, warnings
+import json
+import sys
+import time
+import warnings
 from pathlib import Path
 warnings.filterwarnings("ignore")
 
@@ -129,7 +132,7 @@ def train_baselines(X_tr, X_test, y_tr, y_test):
     for name, model in models.items():
         banner(f"Training {name}")
         if name == "SVM":
-            print(f"  Using 15,000 sample (full SVM takes hours)")
+            print("  Using 15,000 sample (full SVM takes hours)")
             Xf, yf = X_tr[svm_idx], y_tr[svm_idx]
         else:
             Xf, yf = X_tr, y_tr
@@ -191,7 +194,6 @@ def plot_bar(results):
 
 
 def plot_roc(results, X_test, y_test):
-    from models.xgboost_classifier import IntrusionClassifier
     fig, axes = plt.subplots(1, 2, figsize=(13, 5))
     fig.suptitle("ROC Curves — Model Comparison", fontsize=13, fontweight="bold")
 

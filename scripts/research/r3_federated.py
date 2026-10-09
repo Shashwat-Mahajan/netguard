@@ -41,8 +41,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from sklearn.metrics import f1_score, accuracy_score, classification_report
-from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.metrics import f1_score, accuracy_score
 from xgboost import XGBClassifier
 
 from config.settings import settings
@@ -459,7 +458,7 @@ def main() -> None:
     print(f"\n  Centralised XGBoost:  Macro F1 = {centralised_f1:.4f}")
     print(f"  Federated XGBoost:    Macro F1 = {fed_metrics['macro_f1']:.4f}")
     print(f"  Performance gap:      {gap:.4f} ({gap/centralised_f1*100:.1f}% degradation)")
-    print(f"\n  Per-class F1 (federated):")
+    print("\n  Per-class F1 (federated):")
     for cls, f1 in fed_metrics["per_class_f1"].items():
         print(f"    {cls:<10} {f1:.4f}")
 

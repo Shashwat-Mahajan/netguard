@@ -12,7 +12,9 @@ Usage:
 """
 
 from __future__ import annotations
-import json, sys, time, warnings
+import sys
+import time
+import warnings
 from pathlib import Path
 warnings.filterwarnings("ignore")
 
@@ -250,7 +252,7 @@ def tex_table6(comp):
     lines+=[r"\hline",r"\end{tabular}",r"\end{table}"]
     tex="\n".join(lines)
     (OUT/"table6_component_ablation.tex").write_text(tex)
-    print(f"  Table 6 saved"); print(tex)
+    print("  Table 6 saved"); print(tex)
 
 
 def tex_table7(mc):
@@ -269,7 +271,7 @@ def tex_table7(mc):
     ]
     tex="\n".join(lines)
     (OUT/"table7_mcnemar.tex").write_text(tex)
-    print(f"  Table 7 saved"); print(tex)
+    print("  Table 7 saved"); print(tex)
 
 
 def save_json(data):

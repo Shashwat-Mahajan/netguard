@@ -159,7 +159,7 @@ class SHAPExplainer:
         """
         lines = [
             f"Attack type: {explanation['predicted_label']}",
-            f"Top contributing features:",
+            "Top contributing features:",
         ]
         for feat, val in explanation["top_features"].items():
             direction = "↑ increased" if val > 0 else "↓ decreased"

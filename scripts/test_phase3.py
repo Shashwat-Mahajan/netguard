@@ -150,7 +150,7 @@ def test_stats(client: httpx.Client) -> None:
     resp = client.get(f"{BASE}/api/v1/stats")
     if resp.status_code == 200:
         s = resp.json()
-        print(f"  ✓  GET /stats")
+        print("  ✓  GET /stats")
         print(f"       Total flows:      {s['total_flows']}")
         print(f"       Threats detected: {s['alert_count']}")
         print(f"       Threat rate:      {s['threat_rate']:.1%}")

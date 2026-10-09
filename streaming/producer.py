@@ -19,8 +19,6 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import asdict
-from typing import Callable
 
 from config.logger import get_logger
 from config.settings import settings

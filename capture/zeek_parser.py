@@ -15,14 +15,11 @@ Zeek conn.log field reference (subset used):
 
 from __future__ import annotations
 
-import csv
-import io
 import time
 from pathlib import Path
-from typing import Callable, Generator, Iterator
+from typing import Callable, Generator
 
 from config.logger import get_logger
-from config.settings import settings
 from processor.feature_schema import FlowFeatures
 
 logger = get_logger(__name__)

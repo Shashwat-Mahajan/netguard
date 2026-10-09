@@ -9,7 +9,7 @@ Adding a new feature means adding it here first, then updating extractors.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import ClassVar
 
 import numpy as np

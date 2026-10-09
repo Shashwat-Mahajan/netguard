@@ -161,10 +161,10 @@ class IntrusionClassifier:
         print(report)
         print(f"  Macro F1:    {macro_f1:.4f}")
         print(f"  Weighted F1: {weighted_f1:.4f}")
-        print(f"\n  Confusion matrix (rows=actual, cols=predicted):")
+        print("\n  Confusion matrix (rows=actual, cols=predicted):")
         labels = [FlowFeatures.LABEL_NAMES[i] for i in range(5)]
         col_w = 10
-        print("  " + "".join(f"{l:>{col_w}}" for l in labels))
+        print("  " + "".join(f"{name:>{col_w}}" for name in labels))
         for i, row in enumerate(cm):
             print(f"  {labels[i]:<8}" + "".join(f"{v:>{col_w}}" for v in row))
 

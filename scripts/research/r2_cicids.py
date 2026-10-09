@@ -114,7 +114,7 @@ def train_xgboost_cicids(X_train, X_val, X_test, y_train, y_val, y_test) -> tupl
     print(f"  Macro F1: {result['macro_f1']:.4f}   Train time: {train_time}s")
 
     clf.save(settings.data_processed_dir / "xgboost_cicids.joblib")
-    print(f"  Model saved -> data/processed/xgboost_cicids.joblib")
+    print("  Model saved -> data/processed/xgboost_cicids.joblib")
 
     return result, clf
 

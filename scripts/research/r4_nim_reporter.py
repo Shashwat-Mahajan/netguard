@@ -435,7 +435,7 @@ def main() -> None:
     # Verify NIM connection
     banner("Step 1 -- Verify NVIDIA NIM connection")
     client = get_nim_client()
-    print(f"  Testing API connection...")
+    print("  Testing API connection...")
     try:
         test_resp = client.chat.completions.create(
             model=NIM_MODEL,
@@ -444,7 +444,7 @@ def main() -> None:
         )
         print(f"  NIM response: {test_resp.choices[0].message.content.strip()}")
         print(f"  Model: {NIM_MODEL}")
-        print(f"  Connection: OK")
+        print("  Connection: OK")
     except Exception as e:
         print(f"  Connection failed: {e}")
         print("  Check your NVIDIA_NIM_API_KEY in .env")
@@ -457,7 +457,7 @@ def main() -> None:
     scaler_path = settings.data_processed_dir / "scaler.joblib"
     if scaler_path.exists():
         pp.load_scaler(scaler_path)
-        print(f"  Scaler loaded")
+        print("  Scaler loaded")
     print(f"  XGBoost model: {settings.data_processed_dir / 'xgboost_model.joblib'}")
 
     # Run pipeline on all sample flows
@@ -476,7 +476,7 @@ def main() -> None:
               f"SHAP={result['latency']['shap_ms']}ms  "
               f"NIM={result['latency']['nim_api_ms']:.0f}ms  "
               f"Total={result['latency']['total_ms']:.0f}ms")
-        print(f"\n    --- INCIDENT REPORT ---")
+        print("\n    --- INCIDENT REPORT ---")
         print("    " + result["incident_report"].replace("\n", "\n    "))
         print()
 

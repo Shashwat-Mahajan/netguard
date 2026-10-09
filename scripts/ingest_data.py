@@ -52,12 +52,12 @@ def ingest_nslkdd(use_cache: bool = True) -> None:
     print(
         f"  {chk(train_ok)}  KDDTrain+.txt  ({train_path.stat().st_size/1e6:.1f} MB)"
         if train_ok
-        else f"  ✗  KDDTrain+.txt NOT FOUND"
+        else "  ✗  KDDTrain+.txt NOT FOUND"
     )
     print(
         f"  {chk(test_ok)}  KDDTest+.txt   ({test_path.stat().st_size/1e6:.1f} MB)"
         if test_ok
-        else f"  ✗  KDDTest+.txt NOT FOUND"
+        else "  ✗  KDDTest+.txt NOT FOUND"
     )
     if not (train_ok and test_ok):
         print("\n  Run: bash scripts/download_dataset.sh nslkdd")

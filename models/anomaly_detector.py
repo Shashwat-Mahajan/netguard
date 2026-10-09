@@ -115,15 +115,15 @@ class AnomalyDetector:
                      if (precision + recall) > 0 else 0.0)
 
         print(f"\n{'═'*52}")
-        print(f"  Anomaly Detector Evaluation")
+        print("  Anomaly Detector Evaluation")
         print(f"{'═'*52}")
         print(f"  ROC-AUC:   {auc:.4f}")
         print(f"  Precision: {precision:.4f}  (of flagged flows, how many are real attacks)")
         print(f"  Recall:    {recall:.4f}  (of all attacks, how many did we catch)")
         print(f"  F1:        {f1:.4f}")
         print(f"  Threshold: {self._threshold}")
-        print(f"\n  Confusion (binary — attack vs benign):")
-        print(f"             Pred Normal  Pred Anomaly")
+        print("\n  Confusion (binary — attack vs benign):")
+        print("             Pred Normal  Pred Anomaly")
         print(f"  Actual Normal   {tn:>8}     {fp:>8}")
         print(f"  Actual Attack   {fn:>8}     {tp:>8}")
 
