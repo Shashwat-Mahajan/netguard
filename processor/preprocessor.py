@@ -167,7 +167,7 @@ class DataPreprocessor:
         for col in df.select_dtypes(include=[np.number]).columns:
             if df[col].isna().any():
                 fill = df[col].median()
-                df[col].fillna(fill if not pd.isna(fill) else 0.0, inplace=True)
+                df[col] = df[col].fillna(fill if not pd.isna(fill) else 0.0)
 
         # Drop rows with unknown labels
         if "label_encoded" in df.columns:

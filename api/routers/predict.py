@@ -124,13 +124,15 @@ async def predict_flow(req: FlowRequest):
 @router.get("/flows")
 async def get_recent_flows(n: int = 50):
     """Return n most recent classified flows."""
-    return {"flows": alert_store.recent_flows(min(n, 200)), "count": n}
+    flows = alert_store.recent_flows(max(1, min(n, 200)))
+    return {"flows": flows, "count": len(flows)}
 
 
 @router.get("/alerts")
 async def get_recent_alerts(n: int = 20):
     """Return n most recent threat alerts."""
-    return {"alerts": alert_store.recent_alerts(min(n, 100)), "count": n}
+    alerts = alert_store.recent_alerts(max(1, min(n, 100)))
+    return {"alerts": alerts, "count": len(alerts)}
 
 
 @router.get("/stats")

@@ -14,9 +14,10 @@ from __future__ import annotations
 import collections
 import threading
 import time
-from typing import Deque
+from typing import TYPE_CHECKING, Deque
 
-from streaming.consumer import PredictionResult
+if TYPE_CHECKING:
+    from streaming.consumer import PredictionResult
 
 
 class AlertStore:
@@ -39,7 +40,7 @@ class AlertStore:
         self._total = 0
         self._start_time = time.time()
 
-    def add(self, result: PredictionResult) -> None:
+    def add(self, result: "PredictionResult") -> None:
         """Add a prediction result. Called from the consumer thread."""
         d = result.to_dict()
         with self._lock:

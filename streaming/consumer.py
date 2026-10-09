@@ -9,6 +9,10 @@ Pipeline per message:
 
 The consumer runs in its own thread so the FastAPI server
 stays responsive while inference happens in the background.
+
+Heavy model imports (xgboost, sklearn) are deferred to
+InferenceEngine.load() so that importing this module — and therefore
+the FastAPI app — works even when ML dependencies are unavailable.
 """
 
 from __future__ import annotations
@@ -16,16 +20,16 @@ from __future__ import annotations
 import json
 import threading
 import time
-from typing import Callable
-
-import numpy as np
+from typing import TYPE_CHECKING, Callable
 
 from config.logger import get_logger
 from config.settings import settings
-from models.xgboost_classifier import IntrusionClassifier
-from models.anomaly_detector import AnomalyDetector
 from processor.feature_schema import FlowFeatures
-from processor.preprocessor import DataPreprocessor
+
+if TYPE_CHECKING:
+    from models.anomaly_detector import AnomalyDetector
+    from models.xgboost_classifier import IntrusionClassifier
+    from processor.preprocessor import DataPreprocessor
 
 log = get_logger(__name__)
 
@@ -35,6 +39,10 @@ class PredictionResult:
     __slots__ = [
         "flow_id", "src_ip", "dst_ip", "src_port", "dst_port",
         "protocol", "timestamp", "duration",
+        "fwd_packet_count", "bwd_packet_count",
+        "total_fwd_bytes", "total_bwd_bytes",
+        "flow_bytes_per_sec", "flow_packets_per_sec",
+        "syn_flag_count", "fin_flag_count", "rst_flag_count", "psh_flag_count",
         "label", "label_encoded", "confidence",
         "is_anomaly", "anomaly_score",
         "class_probs", "inference_ms",
@@ -70,6 +78,10 @@ class InferenceEngine:
 
     def load(self) -> None:
         """Load all models. Call once at startup."""
+        from models.anomaly_detector import AnomalyDetector
+        from models.xgboost_classifier import IntrusionClassifier
+        from processor.preprocessor import DataPreprocessor
+
         log.info("inference.loading")
 
         self._pp = DataPreprocessor()
@@ -132,6 +144,16 @@ class InferenceEngine:
                 protocol=flow.protocol,
                 timestamp=flow.timestamp,
                 duration=flow.duration,
+                fwd_packet_count=flow.fwd_packet_count,
+                bwd_packet_count=flow.bwd_packet_count,
+                total_fwd_bytes=flow.total_fwd_bytes,
+                total_bwd_bytes=flow.total_bwd_bytes,
+                flow_bytes_per_sec=flow.flow_bytes_per_sec,
+                flow_packets_per_sec=flow.flow_packets_per_sec,
+                syn_flag_count=flow.syn_flag_count,
+                fin_flag_count=flow.fin_flag_count,
+                rst_flag_count=flow.rst_flag_count,
+                psh_flag_count=flow.psh_flag_count,
                 label=label_name,
                 label_encoded=label_int,
                 confidence=round(confidence, 4),

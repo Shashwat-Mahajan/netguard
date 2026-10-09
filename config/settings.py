@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     app_env: Literal["development", "production"] = "development"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     secret_key: str = Field(default="insecure-dev-key", min_length=16)
+
+    # ── CORS ───────────────────────────────────────────────────────
+    # Comma-separated list (plain string avoids pydantic-settings'
+    # JSON-parsing requirement for list env vars).
+    cors_origins: str = "http://localhost:3000,http://localhost:8000"
 
     # ── Capture ────────────────────────────────────────────────────
     capture_interface: str = "eth0"
@@ -47,11 +52,24 @@ class Settings(BaseSettings):
     kafka_topic_traffic: str = "netguard.traffic"
     kafka_topic_alerts: str = "netguard.alerts"
 
+    # ── ClickHouse ─────────────────────────────────────────────────
+    clickhouse_host: str = "localhost"
+    clickhouse_port: int = 9000
+    clickhouse_db: str = "netguard"
+    clickhouse_user: str = "netguard"
+    clickhouse_password: str = ""
+
     @field_validator("data_raw_dir", "data_processed_dir", "log_dir", mode="after")
     @classmethod
     def ensure_dirs_exist(cls, v: Path) -> Path:
         v.mkdir(parents=True, exist_ok=True)
         return v
+
+    @model_validator(mode="after")
+    def _reject_dev_key_in_prod(self) -> "Settings":
+        if self.app_env == "production" and self.secret_key == "insecure-dev-key":
+            raise ValueError("SECRET_KEY must be set explicitly in production")
+        return self
 
     @property
     def is_production(self) -> bool:
@@ -60,6 +78,10 @@ class Settings(BaseSettings):
     @property
     def kafka_enabled(self) -> bool:
         return bool(self.kafka_bootstrap_servers)
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
 # ── Singleton ──────────────────────────────────────────────────────────────────

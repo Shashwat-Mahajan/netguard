@@ -28,20 +28,26 @@ API_REQUESTS = _metric(Counter, "netguard_api_requests_total","API requests", ["
 async def lifespan(app: FastAPI):
     configure_logging()
     log.info("netguard.startup", env=settings.app_env, version="1.0.0-phase3")
+
     try:
         from api.routers.predict import get_engine
         get_engine()
         log.info("models.preloaded")
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("models.preload_failed", error=str(e))
 
+    ch_writer = None
     try:
-        from streaming.clickhouse_writer import ch_writer
-        ch_writer.start()
-        log.info("clickhouse.writer.started")
+        from streaming.clickhouse_writer import ch_writer as _ch_writer
+        _ch_writer.start()  # logs its own success/failure
+        ch_writer = _ch_writer
     except Exception as e:
         log.warning("clickhouse.writer.failed", error=str(e))
+
     yield
+
+    if ch_writer is not None:
+        ch_writer.stop()
     log.info("netguard.shutdown")
 
 app = FastAPI(
@@ -54,7 +60,7 @@ app = FastAPI(
 )
 
 app.add_middleware(CORSMiddleware,
-    allow_origins=["*"], allow_credentials=True,
+    allow_origins=settings.cors_origin_list, allow_credentials=True,
     allow_methods=["*"], allow_headers=["*"])
 
 class MetricsMiddleware(BaseHTTPMiddleware):
