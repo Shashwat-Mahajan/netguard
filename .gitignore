@@ -18,8 +18,9 @@ logs/
 # Research outputs (keep figures, ignore large files)
 data/research/*/results.json
 
-# Docker volumes
+# Docker volumes / dumps
 *.sql
+!config/clickhouse/init.sql
 
 # OS
 .DS_Store
