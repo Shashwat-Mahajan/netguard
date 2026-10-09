@@ -1,0 +1,83 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-8.2.1, pluggy-1.6.0 -- /mnt/d/netguard/venv/bin/python3.12
+cachedir: .pytest_cache
+rootdir: /mnt/d/netguard
+configfile: pytest.ini
+plugins: anyio-4.14.1, Faker-25.2.0, asyncio-0.23.7, cov-5.0.0
+asyncio: mode=Mode.AUTO
+collecting ... collected 33 items
+
+tests/test_api.py::test_health PASSED                                    [  3%]
+tests/test_api.py::test_ready PASSED                                     [  6%]
+tests/test_api.py::test_status PASSED                                    [  9%]
+tests/test_api.py::test_metrics PASSED                                   [ 12%]
+tests/test_api.py::test_404_on_unknown_path PASSED                       [ 15%]
+tests/test_capture.py::test_safe_stats_empty PASSED                      [ 18%]
+tests/test_capture.py::test_safe_stats_single PASSED                     [ 21%]
+tests/test_capture.py::test_safe_stats_multiple PASSED                   [ 24%]
+tests/test_capture.py::test_iats_empty PASSED                            [ 27%]
+tests/test_capture.py::test_iats_single PASSED                           [ 30%]
+tests/test_capture.py::test_iats_multiple PASSED                         [ 33%]
+tests/test_capture.py::test_normalise_key_forward PASSED                 [ 36%]
+tests/test_capture.py::test_normalise_key_reverse PASSED                 [ 39%]
+tests/test_capture.py::test_flow_table_get_or_create PASSED              [ 42%]
+tests/test_capture.py::test_flow_table_eviction PASSED                   [ 45%]
+tests/test_capture.py::test_flow_table_drain PASSED                      [ 48%]
+tests/test_capture.py::test_extractor_produces_flow_features PASSED      [ 51%]
+tests/test_capture.py::test_extractor_packet_counts PASSED               [ 54%]
+tests/test_capture.py::test_extractor_rates_positive PASSED              [ 57%]
+tests/test_capture.py::test_extractor_tcp_flags PASSED                   [ 60%]
+tests/test_capture.py::test_extractor_empty_flow PASSED                  [ 63%]
+tests/test_capture.py::test_extractor_vector_length PASSED               [ 66%]
+tests/test_capture.py::test_label_encoding PASSED                        [ 69%]
+tests/test_processor.py::test_fit_transform_shapes PASSED                [ 72%]
+tests/test_processor.py::test_fit_transform_no_nan_in_output PASSED      [ 75%]
+tests/test_processor.py::test_fit_transform_labels_preserved PASSED      [ 78%]
+tests/test_processor.py::test_transform_without_fit_raises PASSED        [ 81%]
+tests/test_processor.py::test_scaler_save_load PASSED                    [ 84%]
+tests/test_processor.py::test_duplicate_removal PASSED                   [ 87%]
+tests/test_processor.py::test_unknown_labels_dropped PASSED              [ 90%]
+tests/test_processor.py::test_feature_schema_ml_features_count PASSED    [ 93%]
+tests/test_processor.py::test_feature_schema_to_vector PASSED            [ 96%]
+tests/test_processor.py::test_label_map_completeness PASSED              [100%]
+
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/starlette/formparsers.py:12
+  /mnt/d/netguard/venv/lib/python3.12/site-packages/starlette/formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+tests/test_processor.py::test_fit_transform_no_nan_in_output
+tests/test_processor.py::test_fit_transform_no_nan_in_output
+tests/test_processor.py::test_fit_transform_no_nan_in_output
+  /mnt/d/netguard/processor/preprocessor.py:170: FutureWarning: A value is trying to be set on a copy of a DataFrame or Series through chained assignment using an inplace method.
+  The behavior will change in pandas 3.0. This inplace method will never work because the intermediate object on which we are setting values always behaves as a copy.
+  
+  For example, when doing 'df[col].method(value, inplace=True)', try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead, to perform the operation inplace on the original object.
+  
+  
+    df[col].fillna(fill if not pd.isna(fill) else 0.0, inplace=True)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+
+---------- coverage: platform linux, python 3.12.13-final-0 ----------
+Name                                 Stmts   Miss  Cover   Missing
+------------------------------------------------------------------
+api/__init__.py                          0      0   100%
+api/main.py                             66     19    71%   20-21, 29-45, 90
+api/routers/__init__.py                  0      0   100%
+api/routers/predict.py                  84     33    61%   35-39, 80-111, 127, 133, 139-140, 153-177
+api/routers/status.py                   16      1    94%   11
+api/schemas.py                          22     22     0%   6-38
+capture/feature_extractor.py            47      0   100%
+capture/sniffer.py                     175     97    45%   92-94, 159-167, 172-185, 188-192, 195, 199, 205-223, 226-229, 232-303, 307-311
+capture/zeek_parser.py                 111    111     0%   16-220
+processor/cicids_parquet_loader.py      77     77     0%   11-210
+processor/dataset_loader.py            100    100     0%   19-417
+processor/feature_schema.py             61      0   100%
+processor/preprocessor.py               75      6    92%   126-129, 133, 184
+------------------------------------------------------------------
+TOTAL                                  834    466    44%
+Coverage HTML written to dir htmlcov
+
+FAIL Required test coverage of 75% not reached. Total coverage: 44.12%
+======================= 33 passed, 4 warnings in 58.82s ========================

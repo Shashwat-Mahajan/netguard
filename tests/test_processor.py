@@ -92,26 +92,31 @@ def test_scaler_save_load(tmp_path):
     pp2 = DataPreprocessor()
     pp2.load_scaler(scaler_path)
 
-    # Re-transform should give same result
-    df_clean = df.copy()
-    df_clean["label_encoded"] = df["label_encoded"]
-    X_reloaded = pp2.transform(df_clean)
-    assert X_reloaded.shape == X_test.shape
+    # Re-transform the full (deduped) dataframe using the reloaded scaler.
+    # Row count won't match X_test (that's only the 15% test split) — what
+    # matters is that the reloaded scaler produces the correct feature
+    # dimensionality and is numerically usable.
+    X_reloaded = pp2.transform(df)
+    assert X_reloaded.shape[1] == X_test.shape[1]
+    assert X_reloaded.shape[0] == len(df)
+    assert not np.isnan(X_reloaded).any()
 
 
 def test_duplicate_removal():
-    df = _synthetic_df(100)
+    # Use enough rows that even the rarest class (5%) keeps >=2 members
+    # in every stratified split after dedup.
+    df = _synthetic_df(500)
     # Double every row
     df_dup = pd.concat([df, df], ignore_index=True)
     pp = DataPreprocessor()
     X_train, X_val, X_test, *_ = pp.fit_transform(df_dup)
     total = len(X_train) + len(X_val) + len(X_test)
-    # After dedup, total should be ~100, not 200
-    assert total <= 100
+    # After dedup, total should be ~500, not 1000
+    assert total <= 500
 
 
 def test_unknown_labels_dropped():
-    df = _synthetic_df(100)
+    df = _synthetic_df(500)
     # Add some -1 label rows
     bad_rows = df.iloc[:10].copy()
     bad_rows["label_encoded"] = -1
