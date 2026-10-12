@@ -19,7 +19,7 @@ from __future__ import annotations
 import queue
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from config.logger import get_logger
@@ -169,7 +169,11 @@ class ClickHouseWriter:
 
     @staticmethod
     def _to_row(r: "PredictionResult") -> tuple:
-        ts = datetime.fromtimestamp(r.timestamp) if r.timestamp else datetime.now()
+        ts = (
+            datetime.fromtimestamp(r.timestamp, tz=timezone.utc)
+            if r.timestamp
+            else datetime.now(timezone.utc)
+        )
         return (
             r.flow_id or "",
             r.src_ip or "",

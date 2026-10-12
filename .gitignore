@@ -28,4 +28,4 @@ desktop.ini
 
 htmlcov/
 .pytest_cache/
-.coverage
+.coverageflow.json 

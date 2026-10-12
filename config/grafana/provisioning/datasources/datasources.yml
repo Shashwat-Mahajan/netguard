@@ -17,6 +17,14 @@ datasources:
     access: proxy
     isDefault: true
     editable: true
+    # jsonData:
+    #   host:     clickhouse
+    #   port:     9000
+    #   username: netguard
+    #   database: netguard
+    #   protocol: native
+    # secureJsonData:
+    #   password: netguard123
     jsonData:
       host:     clickhouse
       port:     9000
@@ -24,4 +32,4 @@ datasources:
       database: netguard
       protocol: native
     secureJsonData:
-      password: netguard123
+      password: ${CLICKHOUSE_PASSWORD}

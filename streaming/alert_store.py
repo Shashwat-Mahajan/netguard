@@ -1,10 +1,10 @@
 """
 streaming/alert_store.py
-Thread-safe in-memory store of recent predictions and alerts.
+Thread-safe in-memory cache in front of ClickHouse.
 
-The consumer writes results here.
-The FastAPI endpoints read from here.
-ClickHouse (Phase 4) will replace the in-memory store for persistence.
+ClickHouse is the source of truth (see clickhouse_reader.py). This deque only
+holds the newest items so the API can show them before the writer's batch
+has been flushed, and it is refilled from ClickHouse on startup.
 
 Keeps last 10,000 flows and last 1,000 alerts in a circular buffer.
 """
@@ -18,6 +18,27 @@ from typing import TYPE_CHECKING, Deque
 
 if TYPE_CHECKING:
     from streaming.consumer import PredictionResult
+
+
+def merge_recent(cached: list[dict], stored: list[dict], n: int) -> list[dict]:
+    """
+    Combine cache and database rows, newest first, de-duplicated by flow_id.
+    Rows with an empty flow_id are never treated as duplicates.
+    """
+    seen: set[str] = set()
+    out: list[dict] = []
+    for row in sorted(
+        cached + stored, key=lambda r: r.get("timestamp") or 0, reverse=True
+    ):
+        fid = row.get("flow_id")
+        if fid:
+            if fid in seen:
+                continue
+            seen.add(fid)
+        out.append(row)
+        if len(out) >= n:
+            break
+    return out
 
 
 class AlertStore:
@@ -50,6 +71,18 @@ class AlertStore:
             if result.is_threat():
                 self._alerts.append(d)
 
+    def preload(self, flows: list[dict], alerts: list[dict]) -> None:
+        """
+        Refill the cache from the database at startup.
+        Both lists are newest-first (as the reader returns them).
+        Does not touch counters: those describe this process's session.
+        """
+        with self._lock:
+            for d in reversed(flows):
+                self._flows.append(d)
+            for d in reversed(alerts):
+                self._alerts.append(d)
+
     def recent_flows(self, n: int = 50) -> list[dict]:
         """Return the n most recent flows (newest first)."""
         with self._lock:
@@ -71,12 +104,12 @@ class AlertStore:
             alert_count = len(self._alerts)
 
         return {
-            "total_flows":     total,
+            "total_flows": total,
             "flows_per_second": round(total / max(uptime, 1), 2),
-            "uptime_seconds":  round(uptime, 1),
-            "alert_count":     alert_count,
-            "label_counts":    counts,
-            "threat_rate":     round(
+            "uptime_seconds": round(uptime, 1),
+            "alert_count": alert_count,
+            "label_counts": counts,
+            "threat_rate": round(
                 sum(v for k, v in counts.items() if k != "Benign") / max(total, 1),
                 4,
             ),

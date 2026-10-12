@@ -24,6 +24,7 @@ FLOWS_TOTAL  = _metric(Counter, "netguard_flows_total",       "Total flows", ["s
 ACTIVE_FLOWS = _metric(Gauge,   "netguard_active_flows",      "Active flows")
 API_REQUESTS = _metric(Counter, "netguard_api_requests_total","API requests", ["method","path","status"])
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
@@ -31,6 +32,7 @@ async def lifespan(app: FastAPI):
 
     try:
         from api.routers.predict import get_engine
+
         get_engine()
         log.info("models.preloaded")
     except Exception as e:
@@ -39,16 +41,32 @@ async def lifespan(app: FastAPI):
     ch_writer = None
     try:
         from streaming.clickhouse_writer import ch_writer as _ch_writer
+
         _ch_writer.start()  # logs its own success/failure
         ch_writer = _ch_writer
     except Exception as e:
         log.warning("clickhouse.writer.failed", error=str(e))
+
+    # Refill the in-memory cache from ClickHouse so history survives restarts.
+    try:
+        from starlette.concurrency import run_in_threadpool
+        from streaming.alert_store import alert_store
+        from streaming.clickhouse_reader import ch_reader
+
+        if await run_in_threadpool(ch_reader.connect, True):
+            flows = await run_in_threadpool(ch_reader.recent_flows, 1000)
+            alerts = await run_in_threadpool(ch_reader.recent_alerts, 1000)
+            alert_store.preload(flows, alerts)
+            log.info("alert_store.preloaded", flows=len(flows), alerts=len(alerts))
+    except Exception as e:
+        log.warning("alert_store.preload_failed", error=str(e))
 
     yield
 
     if ch_writer is not None:
         ch_writer.stop()
     log.info("netguard.shutdown")
+
 
 app = FastAPI(
     title="NetGuard API",
