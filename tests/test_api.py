@@ -38,14 +38,9 @@ async def test_ready(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_status(client: AsyncClient):
+async def test_status_requires_auth(client: AsyncClient):
     resp = await client.get("/api/v1/status")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert "datasets" in body
-    assert "pipeline" in body
-    assert "cicids2017" in body["datasets"]
-    assert "nslkdd" in body["datasets"]
+    assert resp.status_code == 401
 
 
 @pytest.mark.asyncio

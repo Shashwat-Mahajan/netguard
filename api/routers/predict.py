@@ -15,8 +15,6 @@ import asyncio
 import json
 import time
 import uuid
-
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -25,6 +23,8 @@ from processor.feature_schema import FlowFeatures
 from streaming.alert_store import alert_store, merge_recent
 from streaming.clickhouse_reader import ch_reader
 from streaming.clickhouse_writer import ch_writer
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from api.auth import require_admin
 
 log = get_logger(__name__)
 router = APIRouter(tags=["predict"])
@@ -77,10 +77,17 @@ class PredictionResponse(BaseModel):
     inference_ms: float
 
 
+@router.post(
+    "/predict", response_model=PredictionResponse, dependencies=[Depends(require_admin)]
+)
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
-@router.post("/predict", response_model=PredictionResponse)
+@router.post(
+    "/predict", response_model=PredictionResponse, dependencies=[Depends(require_admin)]
+)
 async def predict_flow(req: FlowRequest):
     """Classify a single network flow and return attack type + confidence."""
     engine = get_engine()
