@@ -59,6 +59,13 @@ class Settings(BaseSettings):
     clickhouse_user: str = "netguard"
     clickhouse_password: str = ""
 
+    # ── Auth ───────────────────────────────────────────────────────
+    auth_db_path: Path = Path("./data/auth.db")
+    jwt_expire_minutes: int = Field(default=60, ge=5, le=1440)
+    # Optional: creates the first admin at startup if it doesn't exist yet.
+    admin_username: str = ""
+    admin_password: str = ""
+
     @field_validator("data_raw_dir", "data_processed_dir", "log_dir", mode="after")
     @classmethod
     def ensure_dirs_exist(cls, v: Path) -> Path:

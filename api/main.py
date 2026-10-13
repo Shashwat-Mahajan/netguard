@@ -1,7 +1,6 @@
 from __future__ import annotations
 import time
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, generate_latest, REGISTRY
@@ -11,6 +10,10 @@ from api.routers import status as status_router
 from api.routers import predict as predict_router
 from config.logger import configure_logging, get_logger
 from config.settings import settings
+from fastapi import Depends, FastAPI, HTTPException
+
+from api.auth import auth_store, require_viewer
+from api.routers import auth as auth_router
 
 log = get_logger(__name__)
 
@@ -29,6 +32,10 @@ API_REQUESTS = _metric(Counter, "netguard_api_requests_total","API requests", ["
 async def lifespan(app: FastAPI):
     configure_logging()
     log.info("netguard.startup", env=settings.app_env, version="1.0.0-phase3")
+    try:
+        auth_store.bootstrap_admin()
+    except Exception as e:
+        log.warning("auth.bootstrap_error", error=str(e))
 
     try:
         from api.routers.predict import get_engine
@@ -96,8 +103,13 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         return response
 
 app.add_middleware(MetricsMiddleware)
-app.include_router(status_router.router,  prefix="/api/v1")
-app.include_router(predict_router.router, prefix="/api/v1")
+app.include_router(auth_router.router, prefix="/api/v1")
+app.include_router(
+    status_router.router, prefix="/api/v1", dependencies=[Depends(require_viewer)]
+)
+app.include_router(
+    predict_router.router, prefix="/api/v1", dependencies=[Depends(require_viewer)]
+)
 
 @app.get("/health", tags=["ops"])
 async def health():
