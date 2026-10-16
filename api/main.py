@@ -1,21 +1,33 @@
 from __future__ import annotations
+
 import time
 from contextlib import asynccontextmanager
+
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, generate_latest, REGISTRY
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    REGISTRY,
+    Counter,
+    Gauge,
+    generate_latest,
+)
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from api.routers import status as status_router
-from api.routers import predict as predict_router
-from config.logger import configure_logging, get_logger
-from config.settings import settings
-from fastapi import Depends, FastAPI, HTTPException
 
 from api.auth import auth_store, require_viewer
+from api.limiter import limiter
 from api.routers import auth as auth_router
+from api.routers import predict as predict_router
+from api.routers import status as status_router
+from config.logger import configure_logging, get_logger
+from config.settings import settings
 
 log = get_logger(__name__)
+
 
 def _metric(cls, name, desc, labels=None):
     try:
@@ -23,15 +35,19 @@ def _metric(cls, name, desc, labels=None):
     except ValueError:
         return REGISTRY._names_to_collectors.get(name)
 
-FLOWS_TOTAL  = _metric(Counter, "netguard_flows_total",       "Total flows", ["source"])
-ACTIVE_FLOWS = _metric(Gauge,   "netguard_active_flows",      "Active flows")
-API_REQUESTS = _metric(Counter, "netguard_api_requests_total","API requests", ["method","path","status"])
+
+FLOWS_TOTAL = _metric(Counter, "netguard_flows_total", "Total flows", ["source"])
+ACTIVE_FLOWS = _metric(Gauge, "netguard_active_flows", "Active flows")
+API_REQUESTS = _metric(
+    Counter, "netguard_api_requests_total", "API requests", ["method", "path", "status"]
+)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
     log.info("netguard.startup", env=settings.app_env, version="1.0.0-phase3")
+
     try:
         auth_store.bootstrap_admin()
     except Exception as e:
@@ -57,6 +73,7 @@ async def lifespan(app: FastAPI):
     # Refill the in-memory cache from ClickHouse so history survives restarts.
     try:
         from starlette.concurrency import run_in_threadpool
+
         from streaming.alert_store import alert_store
         from streaming.clickhouse_reader import ch_reader
 
@@ -79,14 +96,22 @@ app = FastAPI(
     title="NetGuard API",
     description="AI-powered Network Intrusion Detection System",
     version="1.0.0-phase3",
-    docs_url="/docs"  if not settings.is_production else None,
+    docs_url="/docs" if not settings.is_production else None,
     redoc_url="/redoc" if not settings.is_production else None,
     lifespan=lifespan,
 )
 
-app.add_middleware(CORSMiddleware,
-    allow_origins=settings.cors_origin_list, allow_credentials=True,
-    allow_methods=["*"], allow_headers=["*"])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 class MetricsMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -102,7 +127,9 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         response.headers["X-Process-Time"] = f"{duration:.4f}"
         return response
 
+
 app.add_middleware(MetricsMiddleware)
+
 app.include_router(auth_router.router, prefix="/api/v1")
 app.include_router(
     status_router.router, prefix="/api/v1", dependencies=[Depends(require_viewer)]
@@ -111,20 +138,25 @@ app.include_router(
     predict_router.router, prefix="/api/v1", dependencies=[Depends(require_viewer)]
 )
 
+
 @app.get("/health", tags=["ops"])
 async def health():
     return {"status": "ok", "timestamp": time.time()}
+
 
 @app.get("/ready", tags=["ops"])
 async def ready():
     checks = {
         "data_processed_dir": settings.data_processed_dir.exists(),
-        "xgboost_model":      (settings.data_processed_dir / "xgboost_model.joblib").exists(),
-        "scaler":             (settings.data_processed_dir / "scaler.joblib").exists(),
+        "xgboost_model": (
+            settings.data_processed_dir / "xgboost_model.joblib"
+        ).exists(),
+        "scaler": (settings.data_processed_dir / "scaler.joblib").exists(),
     }
     if not all(checks.values()):
         raise HTTPException(status_code=503, detail={"checks": checks})
     return {"status": "ready", "checks": checks}
+
 
 @app.get("/metrics", tags=["ops"])
 async def metrics():
