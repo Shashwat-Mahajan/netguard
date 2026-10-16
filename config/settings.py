@@ -27,8 +27,6 @@ class Settings(BaseSettings):
     secret_key: str = Field(default="insecure-dev-key", min_length=16)
 
     # ── CORS ───────────────────────────────────────────────────────
-    # Comma-separated list (plain string avoids pydantic-settings'
-    # JSON-parsing requirement for list env vars).
     cors_origins: str = "http://localhost:3000,http://localhost:8000"
 
     # ── Capture ────────────────────────────────────────────────────
@@ -65,6 +63,11 @@ class Settings(BaseSettings):
     # Optional: creates the first admin at startup if it doesn't exist yet.
     admin_username: str = ""
     admin_password: str = ""
+
+    # ── Rate limiting ──────────────────────────────────────────────
+    rate_limit_enabled: bool = True
+    rate_limit_login: str = "5/minute"
+    rate_limit_predict: str = "60/minute"
 
     @field_validator("data_raw_dir", "data_processed_dir", "log_dir", mode="after")
     @classmethod

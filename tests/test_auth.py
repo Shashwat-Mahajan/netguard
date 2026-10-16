@@ -26,10 +26,9 @@ def client(store):
 
 
 def _login(client, username, password=PW):
-    r = client.post(
+    return client.post(
         "/api/v1/auth/login", json={"username": username, "password": password}
     )
-    return r
 
 
 def _bearer(client, username):
@@ -129,3 +128,15 @@ def test_websocket_requires_credentials(client, store):
     with pytest.raises(WebSocketDisconnect):
         with client.websocket_connect("/api/v1/stream"):
             pass
+
+
+def test_login_is_rate_limited(client, store):
+    from api.limiter import limiter
+
+    limiter.enabled = True
+    limiter.reset()
+    codes = [
+        _login(client, "nobody", "wrong-password-here").status_code for _ in range(7)
+    ]
+    assert codes[:5] == [401] * 5
+    assert 429 in codes[5:]

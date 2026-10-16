@@ -2,29 +2,39 @@
 api/routers/predict.py
 Prediction endpoints — Phase 3.
 
-POST /api/v1/predict   — classify a single flow
+POST /api/v1/predict   — classify a single flow           (admin, rate limited)
 GET  /api/v1/flows     — recent flows (ClickHouse + in-memory cache)
 GET  /api/v1/alerts    — recent threats only (ClickHouse + in-memory cache)
 GET  /api/v1/stats     — live dashboard stats
 WS   /api/v1/stream    — WebSocket live alert feed
 """
 
-from __future__ import annotations
+
 
 import asyncio
 import json
 import time
 import uuid
+
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
+from api.auth import require_admin
+from api.limiter import limiter
 from config.logger import get_logger
+from config.settings import settings
 from processor.feature_schema import FlowFeatures
 from streaming.alert_store import alert_store, merge_recent
 from streaming.clickhouse_reader import ch_reader
 from streaming.clickhouse_writer import ch_writer
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
-from api.auth import require_admin
 
 log = get_logger(__name__)
 router = APIRouter(tags=["predict"])
@@ -77,18 +87,14 @@ class PredictionResponse(BaseModel):
     inference_ms: float
 
 
-@router.post(
-    "/predict", response_model=PredictionResponse, dependencies=[Depends(require_admin)]
-)
-
-
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
 @router.post(
     "/predict", response_model=PredictionResponse, dependencies=[Depends(require_admin)]
 )
-async def predict_flow(req: FlowRequest):
+@limiter.limit(lambda: settings.rate_limit_predict)
+async def predict_flow(request: Request, req: FlowRequest):
     """Classify a single network flow and return attack type + confidence."""
     engine = get_engine()
 

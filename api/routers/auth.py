@@ -1,6 +1,6 @@
 """
 api/routers/auth.py
-POST /api/v1/auth/login           — username + password -> JWT   (public)
+POST /api/v1/auth/login           — username + password -> JWT   (public, rate limited)
 GET  /api/v1/auth/me              — who am I                      (viewer)
 POST /api/v1/auth/users           — create user                   (admin)
 GET  /api/v1/auth/users           — list users                    (admin)
@@ -9,14 +9,16 @@ GET  /api/v1/auth/api-keys        — list keys (never the secret)  (admin)
 DELETE /api/v1/auth/api-keys/{id} — revoke key                    (admin)
 """
 
-from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from api import auth as auth_mod
 from api.auth import Principal, require_admin, require_viewer
+from api.limiter import limiter
 from config.logger import get_logger
+from config.settings import settings
 
 log = get_logger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -39,7 +41,8 @@ class ApiKeyCreate(BaseModel):
 
 
 @router.post("/login")
-def login(req: LoginRequest):
+@limiter.limit(lambda: settings.rate_limit_login)
+def login(request: Request, req: LoginRequest):
     principal = auth_mod.auth_store.authenticate(req.username, req.password)
     if principal is None:
         log.warning("auth.login_failed", username=req.username)
