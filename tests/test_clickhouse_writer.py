@@ -46,3 +46,23 @@ def test_threat_flag_set_for_attack():
         _result(label="DoS", label_encoded=1, confidence=0.95)
     )
     assert row[23] == 1
+
+
+def test_anomaly_alone_is_suspicious_not_threat():
+    r = _result(label="Benign", label_encoded=0, confidence=0.9, is_anomaly=True)
+    assert not r.is_threat()
+    assert r.is_suspicious()
+    assert r.severity() == "low"
+    assert ClickHouseWriter._to_row(r)[23] == 0  # is_threat column
+
+
+def test_low_confidence_attack_is_not_threat():
+    r = _result(label="DoS", label_encoded=1, confidence=0.36, is_anomaly=True)
+    assert not r.is_threat()
+    assert r.severity() == "low"
+
+
+def test_confident_attack_is_high_severity():
+    r = _result(label="DoS", label_encoded=1, confidence=0.95, is_anomaly=True)
+    assert r.is_threat() and not r.is_suspicious()
+    assert r.severity() == "high"
