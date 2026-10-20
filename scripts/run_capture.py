@@ -1,6 +1,6 @@
 """
 scripts/run_capture.py
-Standalone capture process: packets (live or from a pcap) -> inference -> ClickHouse.
+Standalone capture process: packets (live or from a pcap) -> rules + inference -> ClickHouse.
 The API reads the results back from ClickHouse.
 
   python scripts/run_capture.py --list-interfaces
@@ -61,14 +61,18 @@ def main() -> int:
         return 1
 
     ch_writer.start()
+    if not ch_writer.stats["connected"]:
+        print("WARNING: ClickHouse unreachable. Flows will be scored but NOT saved.")
+
     from capture.rules import SignatureEngine
     from streaming.alert_writer import ch_alert_writer
+    from streaming.intel import ThreatIntel
 
     rules = SignatureEngine.from_settings() if settings.rules_enabled else None
     if rules is not None and not ch_alert_writer.start():
         print("WARNING: could not store rule alerts (ClickHouse unreachable).")
-    if not ch_writer.stats["connected"]:
-        print("WARNING: ClickHouse unreachable. Flows will be scored but NOT saved.")
+
+    intel = ThreatIntel.from_settings() if settings.intel_enabled else None
 
     producer = None
     if args.publish:
@@ -84,6 +88,7 @@ def main() -> int:
         restamp=bool(args.pcap) and not args.keep_timestamps,
         rules=rules,
         alert_writer=ch_alert_writer,
+        intel=intel,
     )
 
     try:

@@ -30,3 +30,5 @@ htmlcov/
 .pytest_cache/
 .coverageflow.json 
 login.json 
+
+data/intel/

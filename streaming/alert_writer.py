@@ -22,15 +22,23 @@ CREATE TABLE IF NOT EXISTS netguard.alerts (
     src_ip        String,
     dst_ip        String,
     flow_count    UInt32,
-    detail        String
+    detail        String,
+    intel         String DEFAULT '',
+    intel_hit     UInt8 DEFAULT 0
 ) ENGINE = MergeTree
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (timestamp, src_ip)
 """
 
+_MIGRATIONS = (
+    "ALTER TABLE netguard.alerts ADD COLUMN IF NOT EXISTS intel String DEFAULT ''",
+    "ALTER TABLE netguard.alerts ADD COLUMN IF NOT EXISTS intel_hit UInt8 DEFAULT 0",
+)
+
 _INSERT = (
     "INSERT INTO netguard.alerts (alert_id, timestamp, source, rule, label, "
-    "label_encoded, severity, src_ip, dst_ip, flow_count, detail) VALUES"
+    "label_encoded, severity, src_ip, dst_ip, flow_count, detail, intel, intel_hit) "
+    "VALUES"
 )
 
 
@@ -55,6 +63,8 @@ class AlertWriter:
                 send_receive_timeout=10,
             )
             c.execute(_CREATE)
+            for sql in _MIGRATIONS:  # upgrade tables created before intel existed
+                c.execute(sql)
             self._client = c
             log.info("alert_writer.started")
             return True
@@ -78,6 +88,8 @@ class AlertWriter:
             a.dst_ip,
             int(a.flow_count),
             a.detail,
+            getattr(a, "intel", ""),
+            int(bool(getattr(a, "intel_hit", False))),
         )
         with self._lock:
             try:

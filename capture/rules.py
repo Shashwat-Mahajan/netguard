@@ -35,6 +35,8 @@ class RuleAlert:
     timestamp: float
     alert_id: str = ""
     source: str = "signature"
+    intel: str = ""
+    intel_hit: bool = False
 
     def __post_init__(self) -> None:
         if not self.alert_id:
