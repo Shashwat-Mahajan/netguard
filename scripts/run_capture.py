@@ -61,6 +61,12 @@ def main() -> int:
         return 1
 
     ch_writer.start()
+    from capture.rules import SignatureEngine
+    from streaming.alert_writer import ch_alert_writer
+
+    rules = SignatureEngine.from_settings() if settings.rules_enabled else None
+    if rules is not None and not ch_alert_writer.start():
+        print("WARNING: could not store rule alerts (ClickHouse unreachable).")
     if not ch_writer.stats["connected"]:
         print("WARNING: ClickHouse unreachable. Flows will be scored but NOT saved.")
 
@@ -76,6 +82,8 @@ def main() -> int:
         writer=ch_writer,
         producer=producer,
         restamp=bool(args.pcap) and not args.keep_timestamps,
+        rules=rules,
+        alert_writer=ch_alert_writer,
     )
 
     try:
