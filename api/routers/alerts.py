@@ -1,7 +1,9 @@
 """
 api/routers/alerts.py
-GET /api/v1/rule-alerts  - signature-rule alerts (ClickHouse)
+GET /api/v1/rule-alerts  - signature-rule alerts (ClickHouse), with threat-intel info
 GET /api/v1/alerts/all   - ML + signature alerts in one timeline, tagged by source
+
+Note: no `from __future__ import annotations` here, on purpose.
 """
 
 from fastapi import APIRouter, Query
@@ -28,6 +30,7 @@ def unify_alerts(ml_rows: list[dict], rule_rows: list[dict], n: int) -> list[dic
                 "src_ip": r.get("src_ip", ""),
                 "dst_ip": r.get("dst_ip", ""),
                 "detail": f"{r.get('label', '')} (confidence {r.get('confidence', 0):.2f})",
+                "intel_hit": False,
             }
         )
     for r in rule_rows:
@@ -42,6 +45,7 @@ def unify_alerts(ml_rows: list[dict], rule_rows: list[dict], n: int) -> list[dic
                 "src_ip": r.get("src_ip", ""),
                 "dst_ip": r.get("dst_ip", ""),
                 "detail": r.get("detail", ""),
+                "intel_hit": bool(r.get("intel_hit")),
             }
         )
     out.sort(key=lambda a: a["timestamp"], reverse=True)

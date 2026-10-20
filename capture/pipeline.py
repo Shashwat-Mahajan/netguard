@@ -2,13 +2,15 @@
 capture/pipeline.py
 Glue between capture and the rest of NetGuard.
 
-For every completed flow:  signature rules + predict -> ClickHouse (and optionally Kafka).
+For every completed flow:  signature rules (+ threat intel) and predict ->
+ClickHouse (and optionally Kafka).
 Degrades gracefully: no models -> flows are counted and dropped (rules still run),
-ClickHouse down -> the writers ignore them, Kafka off -> skipped.
+ClickHouse down -> the writers ignore them, Kafka/intel off -> skipped.
 """
 
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 
@@ -29,6 +31,7 @@ class FlowPipeline:
         restamp: bool = False,
         rules=None,
         alert_writer=None,
+        intel=None,
     ) -> None:
         self._engine = engine
         self._writer = writer
@@ -37,6 +40,7 @@ class FlowPipeline:
         self._restamp = restamp
         self._rules = rules
         self._alert_writer = alert_writer
+        self._intel = intel
         self.seen = 0
         self.scored = 0
         self.threats = 0
@@ -66,6 +70,13 @@ class FlowPipeline:
                 a.timestamp = time.time()
             self.rule_alerts += 1
             self.rule_counts[a.rule] = self.rule_counts.get(a.rule, 0) + 1
+            if self._intel is not None:
+                try:
+                    info, hit = self._intel.enrich_alert(a.src_ip, a.dst_ip)
+                    a.intel = json.dumps(info)
+                    a.intel_hit = hit
+                except Exception as exc:
+                    log.warning("intel.error", error=str(exc))
             log.warning(
                 "rules.alert",
                 rule=a.rule,
@@ -73,6 +84,7 @@ class FlowPipeline:
                 dst=a.dst_ip,
                 severity=a.severity,
                 detail=a.detail,
+                intel_hit=getattr(a, "intel_hit", False),
             )
             if self._alert_writer is not None:
                 self._alert_writer.write(a)

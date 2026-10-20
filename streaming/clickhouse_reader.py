@@ -10,6 +10,7 @@ API falls back to the in-memory cache. Reconnects are retried at most every
 
 from __future__ import annotations
 
+import json
 import threading
 import time
 
@@ -59,6 +60,22 @@ _KEYS = (
     "anomaly_score",
     "is_threat",
     "inference_ms",
+)
+
+_ALERT_KEYS = (
+    "alert_id",
+    "timestamp",
+    "source",
+    "rule",
+    "label",
+    "label_encoded",
+    "severity",
+    "src_ip",
+    "dst_ip",
+    "flow_count",
+    "detail",
+    "intel",
+    "intel_hit",
 )
 
 
@@ -146,14 +163,21 @@ class ClickHouseReader:
             params["severity"] = severity
         sql = (
             "SELECT alert_id, toUnixTimestamp(timestamp), source, rule, label, "
-            "label_encoded, severity, src_ip, dst_ip, flow_count, detail "
-            "FROM netguard.alerts"
+            "label_encoded, severity, src_ip, dst_ip, flow_count, detail, "
+            "intel, intel_hit FROM netguard.alerts"
             + (" WHERE " + " AND ".join(where) if where else "")
             + " ORDER BY timestamp DESC LIMIT %(n)s"
         )
-        keys = ("alert_id", "timestamp", "source", "rule", "label", "label_encoded",
-                "severity", "src_ip", "dst_ip", "flow_count", "detail")
-        return [dict(zip(keys, r)) for r in self._query(sql, params)]
+        out = []
+        for r in self._query(sql, params):
+            d = dict(zip(_ALERT_KEYS, r))
+            try:
+                d["intel"] = json.loads(d["intel"]) if d["intel"] else {}
+            except ValueError:
+                d["intel"] = {}
+            d["intel_hit"] = bool(d["intel_hit"])
+            out.append(d)
+        return out
 
 
 ch_reader = ClickHouseReader()

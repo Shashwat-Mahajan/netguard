@@ -77,6 +77,15 @@ class Settings(BaseSettings):
     rule_sweep_hosts: int = Field(default=50, ge=2)
     rule_cooldown_seconds: int = Field(default=60, ge=1)
 
+    # ── Threat intel ───────────────────────────────────────────────
+    intel_enabled: bool = True
+    intel_dir: Path = Path("./data/intel")
+    intel_refresh_hours: int = Field(default=12, ge=1)
+    intel_cache_hours: int = Field(default=24, ge=1)
+    feodo_url: str = "https://feodotracker.abuse.ch/downloads/ipblocklist.json"
+    abuseipdb_api_key: str = ""
+    otx_api_key: str = ""
+
     @field_validator("data_raw_dir", "data_processed_dir", "log_dir", mode="after")
     @classmethod
     def ensure_dirs_exist(cls, v: Path) -> Path:
