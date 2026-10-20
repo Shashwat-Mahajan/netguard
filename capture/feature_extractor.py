@@ -77,6 +77,9 @@ class FlowFeatureExtractor:
         biat_mean, biat_std, _, _ = _safe_stats(iat_bwd)
 
         src_ip, src_port, dst_ip, dst_port, proto = raw.key
+        if not getattr(raw, "initiator_is_canon", True):
+            # report the initiator (first sender) as the source, as in CICIDS
+            src_ip, src_port, dst_ip, dst_port = dst_ip, dst_port, src_ip, src_port
         flow_id = str(uuid.uuid4())
 
         f = FlowFeatures(

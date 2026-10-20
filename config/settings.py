@@ -69,6 +69,14 @@ class Settings(BaseSettings):
     rate_limit_login: str = "5/minute"
     rate_limit_predict: str = "60/minute"
 
+    # ── Signature rules ────────────────────────────────────────────
+    rules_enabled: bool = True
+    rule_window_seconds: int = Field(default=10, ge=1, le=600)
+    rule_portscan_ports: int = Field(default=50, ge=2)
+    rule_synflood_flows: int = Field(default=200, ge=2)
+    rule_sweep_hosts: int = Field(default=50, ge=2)
+    rule_cooldown_seconds: int = Field(default=60, ge=1)
+
     @field_validator("data_raw_dir", "data_processed_dir", "log_dir", mode="after")
     @classmethod
     def ensure_dirs_exist(cls, v: Path) -> Path:

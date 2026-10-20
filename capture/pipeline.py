@@ -2,9 +2,9 @@
 capture/pipeline.py
 Glue between capture and the rest of NetGuard.
 
-For every completed flow:  predict -> ClickHouse (and optionally Kafka).
-Degrades gracefully: no models -> flows are counted and dropped, ClickHouse
-down -> the writer ignores them, Kafka off -> skipped.
+For every completed flow:  signature rules + predict -> ClickHouse (and optionally Kafka).
+Degrades gracefully: no models -> flows are counted and dropped (rules still run),
+ClickHouse down -> the writers ignore them, Kafka off -> skipped.
 """
 
 from __future__ import annotations
@@ -21,17 +21,28 @@ _QUEUE_HIGH_WATER = 9000  # ClickHouseWriter drops above 10,000 queued rows
 
 class FlowPipeline:
     def __init__(
-        self, engine, writer=None, store=None, producer=None, restamp: bool = False
+        self,
+        engine,
+        writer=None,
+        store=None,
+        producer=None,
+        restamp: bool = False,
+        rules=None,
+        alert_writer=None,
     ) -> None:
         self._engine = engine
         self._writer = writer
         self._store = store
         self._producer = producer
         self._restamp = restamp
+        self._rules = rules
+        self._alert_writer = alert_writer
         self.seen = 0
         self.scored = 0
         self.threats = 0
         self.dropped = 0
+        self.rule_alerts = 0
+        self.rule_counts: dict[str, int] = {}
 
     def _backpressure(self) -> None:
         """Replay emits flows far faster than live; don't overflow the writer queue."""
@@ -44,8 +55,32 @@ class FlowPipeline:
             time.sleep(0.2)
             stats = self._writer.stats
 
+    def _run_rules(self, flow) -> None:
+        try:
+            alerts = self._rules.observe(flow)
+        except Exception as exc:
+            log.error("rules.error", error=str(exc))
+            return
+        for a in alerts:
+            if self._restamp:
+                a.timestamp = time.time()
+            self.rule_alerts += 1
+            self.rule_counts[a.rule] = self.rule_counts.get(a.rule, 0) + 1
+            log.warning(
+                "rules.alert",
+                rule=a.rule,
+                src=a.src_ip,
+                dst=a.dst_ip,
+                severity=a.severity,
+                detail=a.detail,
+            )
+            if self._alert_writer is not None:
+                self._alert_writer.write(a)
+
     def handle_flow(self, flow) -> None:
         self.seen += 1
+        if self._rules is not None:
+            self._run_rules(flow)  # uses the flow's original timestamp
         if self._restamp:
             flow.timestamp = time.time()  # so replayed flows show up as recent
         if self._producer is not None:
@@ -65,12 +100,16 @@ class FlowPipeline:
 
     @property
     def summary(self) -> dict:
-        return {
+        s = {
             "flows_seen": self.seen,
             "scored": self.scored,
             "threats": self.threats,
             "dropped": self.dropped,
         }
+        if self._rules is not None:
+            s["rule_alerts"] = self.rule_alerts
+            s["rules"] = dict(self.rule_counts)
+        return s
 
 
 def replay_pcap(path: str | Path, pipeline: FlowPipeline, max_packets: int = 0) -> int:
