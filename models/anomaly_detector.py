@@ -76,6 +76,10 @@ class AnomalyDetector:
         )
 
         self._model.fit(X_benign)
+        # Flag roughly the lowest 1% of benign scores as anomalous
+        benign_scores = self._model.score_samples(X_benign[:200_000])
+        self._threshold = float(np.percentile(benign_scores, 1))
+        log.info("isoforest.threshold_set", threshold=round(self._threshold, 4))
         log.info("isoforest.train.done")
         print(f"  ✓  Isolation Forest trained on {len(X_benign):,} benign samples")
 

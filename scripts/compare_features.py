@@ -56,9 +56,9 @@ def main():
     replay_pcap(pcap, col)
     flows = col.flows
     flood = max(flows, key=lambda f: f.syn_flag_count)
-    normal = max(flows, key=lambda f: f.total_fwd_bytes + f.total_bwd_bytes)
-    scan = next(f for f in flows if f is not flood and f is not normal)
-    zero = []
+    rest = [f for f in flows if f is not flood]
+    normal = max(rest, key=lambda f: f.fwd_packet_count + f.bwd_packet_count)
+    scan = next(f for f in rest if f is not normal)
     zero = show("SYN flood", flood, pp)
     show("Port-scan flow", scan, pp)
     show("Normal conversation", normal, pp)

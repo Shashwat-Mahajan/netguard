@@ -177,17 +177,17 @@ class InferenceEngine:
                 if result.is_threat():
                     self._threats += 1
 
-                if result.is_threat():
-                    log.warning(
+            if result.is_threat():
+                log.warning(
                     "inference.threat_detected",
                     flow_id=flow.flow_id,
                     label=label_name,
                     confidence=confidence,
                     src=f"{flow.src_ip}:{flow.src_port}",
                     dst=f"{flow.dst_ip}:{flow.dst_port}",
-                    )
-                elif result.is_suspicious():
-                    log.info(
+                )
+            elif result.is_suspicious():
+                log.debug(
                     "inference.suspicious_flow",
                     flow_id=flow.flow_id,
                     anomaly_score=anomaly_score,

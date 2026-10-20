@@ -11,6 +11,8 @@ Design decisions:
   - Bidirectional flows: (src_ip, src_port, dst_ip, dst_port, proto) is
     normalised so the smaller (ip, port) tuple is always "src", making
     A→B and B→A the same flow key.
+  - Direction: "forward" is the sender of the flow's FIRST packet (the
+    initiator), matching the CICIDS2017 definition the models were trained on.
   - Flow eviction: flows are evicted after `flow_timeout` seconds of
     inactivity and yielded to the consumer via a callback.
   - Thread safety: FlowTable uses a single RLock — capture thread writes,
@@ -42,6 +44,9 @@ class RawFlow:
     key: FlowKey
     start_time: float = field(default_factory=time.time)
     last_seen: float = field(default_factory=time.time)
+
+    # True if the first packet travelled in the canonical key direction
+    initiator_is_canon: bool = True
 
     # Forward direction (first packet direction)
     fwd_packets: list[dict] = field(default_factory=list)
@@ -122,8 +127,8 @@ def _normalise_key(
     proto: int,
 ) -> tuple[FlowKey, bool]:
     """
-    Return a canonical flow key and whether this packet is forward-direction.
-    Forward = whichever (ip, port) pair compares smaller lexicographically.
+    Return a canonical flow key and whether this packet is in the canonical
+    direction (the smaller (ip, port) pair compares as the key's "src").
     """
     a = (src_ip, src_port)
     b = (dst_ip, dst_port)
@@ -244,14 +249,19 @@ class PacketCapture:
                 udp = pkt[UDP]
                 src_port, dst_port = udp.sport, udp.dport
 
-            key, is_fwd = _normalise_key(src_ip, src_port, dst_ip, dst_port, proto)
+            key, canon_fwd = _normalise_key(src_ip, src_port, dst_ip, dst_port, proto)
             flow = self._table.get_or_create(key)
+
+            if not flow.fwd_packets and not flow.bwd_packets:
+                # First packet defines "forward": the initiator, as in CICIDS2017
+                flow.initiator_is_canon = canon_fwd
+                if use_pkt_time:
+                    flow.start_time = float(pkt.time)
+            is_fwd = canon_fwd == flow.initiator_is_canon
+
             if use_pkt_time:
                 # pcap replay: use the packet's own timestamp, not wall-clock time
-                pkt_time = float(pkt.time)
-                if not flow.fwd_packets and not flow.bwd_packets:
-                    flow.start_time = pkt_time
-                flow.last_seen = pkt_time
+                flow.last_seen = float(pkt.time)
             else:
                 flow.last_seen = time.time()
 
