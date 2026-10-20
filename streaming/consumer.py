@@ -56,10 +56,19 @@ class PredictionResult:
         return {s: getattr(self, s) for s in self.__slots__}
 
     def is_threat(self, confidence_threshold: float = 0.7) -> bool:
-        return (
-            self.label_encoded != 0
-            and self.confidence >= confidence_threshold
-        ) or self.is_anomaly
+        """Confirmed threat: the classifier says attack with enough confidence."""
+        return self.label_encoded != 0 and self.confidence >= confidence_threshold
+
+    def is_suspicious(self, confidence_threshold: float = 0.7) -> bool:
+        """Not a confirmed threat, but the Isolation Forest flagged it as unusual."""
+        return bool(self.is_anomaly) and not self.is_threat(confidence_threshold)
+
+    def severity(self) -> str:
+        if self.is_threat():
+            return "high"
+        if self.is_suspicious():
+            return "low"
+        return "none"
 
 
 class InferenceEngine:
@@ -168,14 +177,20 @@ class InferenceEngine:
                 if result.is_threat():
                     self._threats += 1
 
-            if result.is_threat():
-                log.warning(
+                if result.is_threat():
+                    log.warning(
                     "inference.threat_detected",
                     flow_id=flow.flow_id,
                     label=label_name,
                     confidence=confidence,
                     src=f"{flow.src_ip}:{flow.src_port}",
                     dst=f"{flow.dst_ip}:{flow.dst_port}",
+                    )
+                elif result.is_suspicious():
+                    log.info(
+                    "inference.suspicious_flow",
+                    flow_id=flow.flow_id,
+                    anomaly_score=anomaly_score,
                 )
 
             return result

@@ -24,7 +24,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable
 
-
 from capture.feature_extractor import FlowFeatureExtractor
 from config.logger import get_logger
 from config.settings import settings
@@ -226,7 +225,7 @@ class PacketCapture:
             for raw in self._table.evict_timed_out():
                 self._emit(raw)
 
-    def _handle_packet(self, pkt) -> None:
+    def _handle_packet(self, pkt, use_pkt_time: bool = False) -> None:
         try:
             from scapy.layers.inet import IP, TCP, UDP  # type: ignore
 
@@ -247,7 +246,14 @@ class PacketCapture:
 
             key, is_fwd = _normalise_key(src_ip, src_port, dst_ip, dst_port, proto)
             flow = self._table.get_or_create(key)
-            flow.last_seen = time.time()
+            if use_pkt_time:
+                # pcap replay: use the packet's own timestamp, not wall-clock time
+                pkt_time = float(pkt.time)
+                if not flow.fwd_packets and not flow.bwd_packets:
+                    flow.start_time = pkt_time
+                flow.last_seen = pkt_time
+            else:
+                flow.last_seen = time.time()
 
             payload_len = len(pkt.payload)
             header_len = len(pkt) - payload_len
