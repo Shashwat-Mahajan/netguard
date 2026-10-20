@@ -21,7 +21,7 @@ def build(t0: float) -> list:
         add(
             Ether()
             / IP(src="10.9.9.9", dst="10.0.0.9")
-            / TCP(sport=4444, dport=80, flags="S"),
+            / TCP(sport=1024 + i, dport=80, flags="S"),
             t0 + i * 0.00001,
         )
 
