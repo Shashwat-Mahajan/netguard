@@ -134,5 +134,26 @@ class ClickHouseReader:
         )
         return [_row_to_dict(r) for r in rows]
 
+    def recent_rule_alerts(
+        self, n: int = 20, rule: str | None = None, severity: str | None = None
+    ) -> list[dict]:
+        where, params = [], {"n": int(n)}
+        if rule:
+            where.append("rule = %(rule)s")
+            params["rule"] = rule
+        if severity:
+            where.append("severity = %(severity)s")
+            params["severity"] = severity
+        sql = (
+            "SELECT alert_id, toUnixTimestamp(timestamp), source, rule, label, "
+            "label_encoded, severity, src_ip, dst_ip, flow_count, detail "
+            "FROM netguard.alerts"
+            + (" WHERE " + " AND ".join(where) if where else "")
+            + " ORDER BY timestamp DESC LIMIT %(n)s"
+        )
+        keys = ("alert_id", "timestamp", "source", "rule", "label", "label_encoded",
+                "severity", "src_ip", "dst_ip", "flow_count", "detail")
+        return [dict(zip(keys, r)) for r in self._query(sql, params)]
+
 
 ch_reader = ClickHouseReader()

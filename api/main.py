@@ -25,6 +25,7 @@ from api.routers import predict as predict_router
 from api.routers import status as status_router
 from config.logger import configure_logging, get_logger
 from config.settings import settings
+from api.routers import alerts as alerts_router
 
 log = get_logger(__name__)
 
@@ -99,6 +100,10 @@ app = FastAPI(
     docs_url="/docs" if not settings.is_production else None,
     redoc_url="/redoc" if not settings.is_production else None,
     lifespan=lifespan,
+)
+
+app.include_router(
+    alerts_router.router, prefix="/api/v1", dependencies=[Depends(require_viewer)]
 )
 
 app.state.limiter = limiter
