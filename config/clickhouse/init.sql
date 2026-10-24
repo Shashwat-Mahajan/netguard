@@ -25,7 +25,10 @@ CREATE TABLE IF NOT EXISTS netguard.flows (
     is_anomaly           UInt8,
     anomaly_score        Float32,
     is_threat            UInt8,
-    inference_ms         Float32
+    inference_ms         Float32,
+    class_probs          String DEFAULT '',
+    explanation          String DEFAULT '',
+    report               String DEFAULT ''
 ) ENGINE = MergeTree
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (timestamp, src_ip);

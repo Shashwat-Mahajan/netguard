@@ -16,6 +16,7 @@ working, flows just aren't persisted.
 
 from __future__ import annotations
 
+import json
 import queue
 import threading
 import time
@@ -39,9 +40,17 @@ INSERT INTO netguard.flows (
     flow_bytes_per_sec, flow_packets_per_sec,
     syn_flag_count, fin_flag_count, rst_flag_count, psh_flag_count,
     label, label_encoded, confidence,
-    is_anomaly, anomaly_score, is_threat, inference_ms
+    is_anomaly, anomaly_score, is_threat, inference_ms,
+    class_probs, explanation, report
 ) VALUES
 """
+
+# Upgrade tables created before Phase 4 (no-ops if the columns already exist)
+MIGRATIONS = (
+    "ALTER TABLE netguard.flows ADD COLUMN IF NOT EXISTS class_probs String DEFAULT ''",
+    "ALTER TABLE netguard.flows ADD COLUMN IF NOT EXISTS explanation String DEFAULT ''",
+    "ALTER TABLE netguard.flows ADD COLUMN IF NOT EXISTS report String DEFAULT ''",
+)
 
 
 class ClickHouseWriter:
@@ -77,6 +86,7 @@ class ClickHouseWriter:
         """Connect to ClickHouse and start the background writer thread."""
         try:
             from clickhouse_driver import Client  # type: ignore
+
             self._client = Client(
                 host=settings.clickhouse_host,
                 port=settings.clickhouse_port,
@@ -88,6 +98,8 @@ class ClickHouseWriter:
             )
             # Test connection
             self._client.execute("SELECT 1")
+            for sql in MIGRATIONS:
+                self._client.execute(sql)
             log.info("clickhouse.connected", host=settings.clickhouse_host)
         except Exception as exc:
             log.warning(
@@ -126,8 +138,9 @@ class ClickHouseWriter:
             if self._queue.empty():
                 break
             self._flush()
-        log.info("clickhouse.writer.stopped",
-                 written=self._written, failed=self._failed)
+        log.info(
+            "clickhouse.writer.stopped", written=self._written, failed=self._failed
+        )
 
     # ── Internal ──────────────────────────────────────────────
 
@@ -201,14 +214,17 @@ class ClickHouseWriter:
             float(r.anomaly_score),
             int(r.is_threat()),
             float(r.inference_ms),
+            json.dumps(getattr(r, "class_probs", None) or {}, default=float),
+            json.dumps(getattr(r, "top_features", None) or {}, default=float),
+            getattr(r, "report", "") or "",
         )
 
     @property
     def stats(self) -> dict:
         return {
-            "written":   self._written,
-            "failed":    self._failed,
-            "queued":    self._queue.qsize(),
+            "written": self._written,
+            "failed": self._failed,
+            "queued": self._queue.qsize(),
             "connected": self._client is not None,
         }
 

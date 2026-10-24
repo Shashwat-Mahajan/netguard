@@ -86,6 +86,16 @@ class Settings(BaseSettings):
     abuseipdb_api_key: str = ""
     otx_api_key: str = ""
 
+    # ── LLM incident reports ───────────────────────────────────────
+    # auto = Ollama if running, else NVIDIA NIM if a key is set, else template
+    llm_backend: Literal["auto", "ollama", "nim", "template"] = "auto"
+    llm_timeout_seconds: int = Field(default=120, ge=5, le=600)
+    ollama_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.1:8b"
+    nvidia_nim_api_key: str = ""
+    nvidia_nim_model: str = "meta/llama-3.1-8b-instruct"
+    nvidia_nim_url: str = "https://integrate.api.nvidia.com/v1"
+
     @field_validator("data_raw_dir", "data_processed_dir", "log_dir", mode="after")
     @classmethod
     def ensure_dirs_exist(cls, v: Path) -> Path:

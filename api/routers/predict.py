@@ -1,15 +1,15 @@
 """
 api/routers/predict.py
-Prediction endpoints — Phase 3.
+Prediction endpoints.
 
-POST /api/v1/predict   — classify a single flow           (admin, rate limited)
+POST /api/v1/predict   — classify a flow + SHAP explanation + incident report (admin, rate limited)
 GET  /api/v1/flows     — recent flows (ClickHouse + in-memory cache)
 GET  /api/v1/alerts    — recent threats only (ClickHouse + in-memory cache)
 GET  /api/v1/stats     — live dashboard stats
 WS   /api/v1/stream    — WebSocket live alert feed
+
+Note: no `from __future__ import annotations` here, on purpose (slowapi).
 """
-
-
 
 import asyncio
 import json
@@ -20,6 +20,7 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
+    Query,
     Request,
     WebSocket,
     WebSocketDisconnect,
@@ -31,6 +32,7 @@ from api.auth import require_admin
 from api.limiter import limiter
 from config.logger import get_logger
 from config.settings import settings
+from models.incident_reporter import get_reporter
 from processor.feature_schema import FlowFeatures
 from streaming.alert_store import alert_store, merge_recent
 from streaming.clickhouse_reader import ch_reader
@@ -84,7 +86,11 @@ class PredictionResponse(BaseModel):
     anomaly_score: float
     class_probs: dict[str, float]
     is_threat: bool
+    severity: str = "none"
     inference_ms: float
+    top_features: dict[str, float] = {}
+    report: str | None = None
+    report_backend: str | None = None
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -94,8 +100,14 @@ class PredictionResponse(BaseModel):
     "/predict", response_model=PredictionResponse, dependencies=[Depends(require_admin)]
 )
 @limiter.limit(lambda: settings.rate_limit_predict)
-async def predict_flow(request: Request, req: FlowRequest):
-    """Classify a single network flow and return attack type + confidence."""
+async def predict_flow(
+    request: Request,
+    req: FlowRequest,
+    report: bool | None = Query(
+        None, description="Generate an incident report. Default: only for alerts."
+    ),
+):
+    """Classify a flow: attack type, SHAP top features, and a plain-English report."""
     engine = get_engine()
 
     flow = FlowFeatures(
@@ -118,12 +130,26 @@ async def predict_flow(request: Request, req: FlowRequest):
         psh_flag_count=req.psh_flag_count,
     )
 
-    result = engine.predict(flow)
+    result = await run_in_threadpool(engine.predict, flow, True)  # always explain
     if result is None:
         raise HTTPException(
             status_code=503,
             detail="Models not loaded. Run Phase 2 training first.",
         )
+
+    want_report = (
+        report if report is not None else (result.is_threat() or result.is_suspicious())
+    )
+    if want_report:
+        rep = await run_in_threadpool(
+            get_reporter().generate,
+            result.to_dict(),
+            result.label,
+            result.confidence,
+            result.top_features,
+        )
+        result.report = rep["report"]
+        result.report_backend = rep["backend"]
 
     alert_store.add(result)
     ch_writer.write(result)
@@ -137,7 +163,11 @@ async def predict_flow(request: Request, req: FlowRequest):
         anomaly_score=result.anomaly_score,
         class_probs=result.class_probs,
         is_threat=result.is_threat(),
+        severity=result.severity(),
         inference_ms=result.inference_ms,
+        top_features=result.top_features,
+        report=result.report or None,
+        report_backend=result.report_backend or None,
     )
 
 

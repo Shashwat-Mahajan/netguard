@@ -4,7 +4,7 @@ Kafka/Redpanda consumer — reads flows and runs ML inference.
 
 Pipeline per message:
   Redpanda topic → deserialise → scale features →
-  XGBoost classify → IsoForest anomaly check →
+  XGBoost classify → IsoForest anomaly check → SHAP explanation (alerts) →
   merge result → publish to alerts topic
 
 The consumer runs in its own thread so the FastAPI server
@@ -28,6 +28,7 @@ from processor.feature_schema import FlowFeatures
 
 if TYPE_CHECKING:
     from models.anomaly_detector import AnomalyDetector
+    from models.explainer import SHAPExplainer
     from models.xgboost_classifier import IntrusionClassifier
     from processor.preprocessor import DataPreprocessor
 
@@ -36,19 +37,42 @@ log = get_logger(__name__)
 
 class PredictionResult:
     """Result of classifying one flow."""
+
     __slots__ = [
-        "flow_id", "src_ip", "dst_ip", "src_port", "dst_port",
-        "protocol", "timestamp", "duration",
-        "fwd_packet_count", "bwd_packet_count",
-        "total_fwd_bytes", "total_bwd_bytes",
-        "flow_bytes_per_sec", "flow_packets_per_sec",
-        "syn_flag_count", "fin_flag_count", "rst_flag_count", "psh_flag_count",
-        "label", "label_encoded", "confidence",
-        "is_anomaly", "anomaly_score",
-        "class_probs", "inference_ms",
+        "flow_id",
+        "src_ip",
+        "dst_ip",
+        "src_port",
+        "dst_port",
+        "protocol",
+        "timestamp",
+        "duration",
+        "fwd_packet_count",
+        "bwd_packet_count",
+        "total_fwd_bytes",
+        "total_bwd_bytes",
+        "flow_bytes_per_sec",
+        "flow_packets_per_sec",
+        "syn_flag_count",
+        "fin_flag_count",
+        "rst_flag_count",
+        "psh_flag_count",
+        "label",
+        "label_encoded",
+        "confidence",
+        "is_anomaly",
+        "anomaly_score",
+        "class_probs",
+        "inference_ms",
+        "top_features",
+        "report",
+        "report_backend",
     ]
 
     def __init__(self, **kwargs):
+        self.top_features = {}
+        self.report = ""
+        self.report_backend = ""
         for k, v in kwargs.items():
             setattr(self, k, v)
 
@@ -81,6 +105,9 @@ class InferenceEngine:
         self._clf: IntrusionClassifier | None = None
         self._det: AnomalyDetector | None = None
         self._pp: DataPreprocessor | None = None
+        self._explainer: SHAPExplainer | None = None
+        self._explainer_failed = False
+        self._shap_lock = threading.Lock()
         self._lock = threading.Lock()
         self._total = 0
         self._threats = 0
@@ -119,10 +146,32 @@ class InferenceEngine:
 
         log.info("inference.ready")
 
-    def predict(self, flow: FlowFeatures) -> PredictionResult | None:
+    def _explain(self, vec, label_int: int, top_n: int = 8) -> dict:
+        """Top SHAP features for the predicted class. Never raises."""
+        with self._shap_lock:
+            try:
+                if self._explainer is None:
+                    if self._explainer_failed:
+                        return {}
+                    from models.explainer import SHAPExplainer
+
+                    ex = SHAPExplainer(self._clf)
+                    ex.build()
+                    self._explainer = ex
+                out = self._explainer.explain_single(vec, label_int, top_n=top_n)
+                return out["top_features"]
+            except Exception as exc:
+                self._explainer_failed = True
+                log.warning("inference.shap_unavailable", error=str(exc))
+                return {}
+
+    def predict(
+        self, flow: FlowFeatures, explain: bool | None = None
+    ) -> PredictionResult | None:
         """
-        Run full inference on one flow.
-        Returns None if models are not loaded.
+        Run full inference on one flow. Returns None if models are not loaded.
+        explain=None: SHAP only for threats/suspicious flows (cheap for bulk capture)
+        explain=True: always; explain=False: never.
         """
         if self._clf is None or self._pp is None:
             return None
@@ -134,8 +183,9 @@ class InferenceEngine:
             vec = self._pp.transform_features(flow)
 
             # XGBoost classification
-            label_name, label_int, confidence, class_probs = \
-                self._clf.predict_single(vec[0])
+            label_name, label_int, confidence, class_probs = self._clf.predict_single(
+                vec[0]
+            )
 
             # Isolation Forest anomaly check
             is_anomaly, anomaly_score = False, 0.0
@@ -172,6 +222,14 @@ class InferenceEngine:
                 inference_ms=round(inference_ms, 2),
             )
 
+            do_explain = (
+                explain
+                if explain is not None
+                else (result.is_threat() or result.is_suspicious())
+            )
+            if do_explain:
+                result.top_features = self._explain(vec[0], label_int)
+
             with self._lock:
                 self._total += 1
                 if result.is_threat():
@@ -203,14 +261,14 @@ class InferenceEngine:
     def stats(self) -> dict:
         with self._lock:
             return {
-                "total_flows":  self._total,
-                "threats":      self._threats,
-                "benign":       self._total - self._threats,
-                "threat_rate":  round(self._threats / max(self._total, 1), 4),
+                "total_flows": self._total,
+                "threats": self._threats,
+                "benign": self._total - self._threats,
+                "threat_rate": round(self._threats / max(self._total, 1), 4),
                 "models_loaded": {
-                    "xgboost":        self._clf is not None and self._clf.is_fitted(),
+                    "xgboost": self._clf is not None and self._clf.is_fitted(),
                     "isolation_forest": self._det is not None and self._det.is_fitted(),
-                    "scaler":         self._pp is not None,
+                    "scaler": self._pp is not None,
                 },
             }
 
@@ -264,6 +322,7 @@ class FlowConsumer:
     def _consume_loop(self) -> None:
         try:
             from kafka import KafkaConsumer  # type: ignore
+
             self._consumer = KafkaConsumer(
                 settings.kafka_topic_traffic,
                 bootstrap_servers=settings.kafka_bootstrap_servers,

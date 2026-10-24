@@ -30,7 +30,8 @@ SELECT flow_id, src_ip, dst_ip, src_port, dst_port, protocol,
        flow_bytes_per_sec, flow_packets_per_sec,
        syn_flag_count, fin_flag_count, rst_flag_count, psh_flag_count,
        label, label_encoded, confidence,
-       is_anomaly, anomaly_score, is_threat, inference_ms
+       is_anomaly, anomaly_score, is_threat, inference_ms,
+       class_probs, explanation, report
 FROM netguard.flows
 """
 
@@ -60,6 +61,9 @@ _KEYS = (
     "anomaly_score",
     "is_threat",
     "inference_ms",
+    "class_probs",
+    "top_features",
+    "report",
 )
 
 _ALERT_KEYS = (
@@ -79,12 +83,20 @@ _ALERT_KEYS = (
 )
 
 
+def _json_or_empty(text) -> dict:
+    try:
+        return json.loads(text) if text else {}
+    except ValueError:
+        return {}
+
+
 def _row_to_dict(row: tuple) -> dict:
     d = dict(zip(_KEYS, row))
     d["timestamp"] = float(d["timestamp"])
     d["is_anomaly"] = bool(d["is_anomaly"])
     d["is_threat"] = bool(d["is_threat"])
-    d["class_probs"] = {}  # not persisted
+    d["class_probs"] = _json_or_empty(d["class_probs"])
+    d["top_features"] = _json_or_empty(d["top_features"])
     return d
 
 
@@ -171,10 +183,7 @@ class ClickHouseReader:
         out = []
         for r in self._query(sql, params):
             d = dict(zip(_ALERT_KEYS, r))
-            try:
-                d["intel"] = json.loads(d["intel"]) if d["intel"] else {}
-            except ValueError:
-                d["intel"] = {}
+            d["intel"] = _json_or_empty(d["intel"])
             d["intel_hit"] = bool(d["intel_hit"])
             out.append(d)
         return out

@@ -27,8 +27,8 @@ def _result(**overrides) -> PredictionResult:
     return PredictionResult(**base)
 
 
-def test_row_has_25_columns():
-    assert len(ClickHouseWriter._to_row(_result())) == 25
+def test_row_has_28_columns():
+    assert len(ClickHouseWriter._to_row(_result())) == 28
 
 
 def test_benign_label_encoded_is_not_turned_into_minus_one():
