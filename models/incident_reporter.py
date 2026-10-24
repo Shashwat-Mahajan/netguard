@@ -8,10 +8,14 @@ Backends (settings.llm_backend):
   nim      - NVIDIA NIM (optional)
   template - built-in, no LLM (always works)
 Any backend failure falls through to the next one, ending at the template.
+
+Grounding: the prompt carries real feature values, and any figure in the LLM's
+text that does not appear in the alert data is listed in a note on the report.
 """
 
 from __future__ import annotations
 
+import re
 import threading
 import time
 
@@ -28,26 +32,40 @@ _ACTIONS = {
     "Benign": "No action needed unless the anomaly score stays high for this host.",
 }
 
+_IP_RE = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b")
+_NUM_RE = re.compile(r"\d[\d,]*\.?\d*")
+
 
 def _protocol(p) -> str:
     return {6: "TCP", 17: "UDP", 1: "ICMP"}.get(p, str(p))
 
 
-def _feature_lines(top_features: dict, label: str = "") -> str:
+def _feature_lines(
+    top_features: dict, label: str = "", values: dict | None = None
+) -> str:
+    values = values or {}
     items = sorted(top_features.items(), key=lambda kv: abs(kv[1]), reverse=True)
     target = f"the {label} classification" if label else "the predicted class"
-    return (
-        "\n".join(
-            f"  - {k}: {'pushed toward' if v > 0 else 'pushed away from'} {target} (SHAP={v:+.3f})"
-            for k, v in items
+    lines = []
+    for k, v in items:
+        val = f"value={values[k]:g}, " if k in values else ""
+        lines.append(
+            f"  - {k}: {val}{'pushed toward' if v > 0 else 'pushed away from'} "
+            f"{target} (SHAP={v:+.3f})"
         )
-        or "  (no explanation available)"
-    )
+    return "\n".join(lines) or "  (no explanation available)"
 
 
-def build_prompt(flow: dict, label: str, confidence: float, top_features: dict) -> str:
+def build_prompt(
+    flow: dict,
+    label: str,
+    confidence: float,
+    top_features: dict,
+    values: dict | None = None,
+) -> str:
     return f"""You are a senior SOC analyst. A network intrusion detection system analysed this flow.
-Write a concise incident report using ONLY the data below. Do not invent details.
+Write a concise incident report using ONLY the data below.
+Do not invent details. Do not state any number, unit or time that is not written below.
 
 === ALERT ===
 Classification: {label} (confidence {confidence:.0%})
@@ -60,8 +78,8 @@ Bytes:       {flow.get('total_fwd_bytes', 0)} sent, {flow.get('total_bwd_bytes',
 SYN flags:   {flow.get('syn_flag_count', 0)}
 Anomaly detector flagged: {bool(flow.get('is_anomaly', False))}
 
-=== TOP FEATURES (SHAP: what drove the classification) ===
-{_feature_lines(top_features, label)}
+=== TOP FEATURES (actual value, and SHAP: what drove the classification) ===
+{_feature_lines(top_features, label, values)}
 
 If the classification is Benign, say no attack was identified; do not describe it as
 suspicious unless the anomaly detector flagged it.
@@ -70,12 +88,47 @@ Write 3 short paragraphs: 1) executive summary (one sentence, include severity),
 3) recommended action (1-2 sentences). Under 150 words total."""
 
 
+def _allowed_numbers(
+    flow: dict, confidence: float, top_features: dict, values: dict | None
+) -> list[float]:
+    nums = [
+        float(x)
+        for x in (flow or {}).values()
+        if isinstance(x, (int, float)) and not isinstance(x, bool)
+    ]
+    nums += [float(x) for x in (values or {}).values()]
+    nums += [float(x) for x in top_features.values()]
+    nums += [confidence * 100, confidence]
+    return nums
+
+
+def ungrounded_numbers(text: str, allowed: list[float]) -> list[str]:
+    """Numbers >= 10 in the text that match nothing in the alert data."""
+    bad = []
+    for raw in _NUM_RE.findall(_IP_RE.sub(" ", text)):
+        try:
+            n = float(raw.replace(",", "").rstrip("."))
+        except ValueError:
+            continue
+        if abs(n) < 10:
+            continue
+        if not any(abs(n - a) <= max(0.51, 0.01 * abs(a)) for a in allowed):
+            bad.append(raw.rstrip("."))
+    return sorted(set(bad))
+
+
 def template_report(
-    flow: dict, label: str, confidence: float, top_features: dict
+    flow: dict,
+    label: str,
+    confidence: float,
+    top_features: dict,
+    values: dict | None = None,
 ) -> str:
+    values = values or {}
     top = sorted(top_features.items(), key=lambda kv: abs(kv[1]), reverse=True)[:3]
     feats = ", ".join(
-        f"{k} ({'supports' if v > 0 else 'opposes'} the {label} classification)"
+        f"{k}{f' = {values[k]:g}' if k in values else ''} "
+        f"({'supports' if v > 0 else 'opposes'} the {label} classification)"
         for k, v in top
     )
     src = f"{flow.get('src_ip', '?')}:{flow.get('src_port', 0)}"
@@ -181,7 +234,7 @@ class IncidentReporter:
         body = {
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": 300,
-            "temperature": 0.3,
+            "temperature": 0.2,
             "stream": False,
         }
         if backend == "ollama":
@@ -196,17 +249,34 @@ class IncidentReporter:
         return data["choices"][0]["message"]["content"].strip()
 
     def generate(
-        self, flow: dict, label: str, confidence: float, top_features: dict
+        self,
+        flow: dict,
+        label: str,
+        confidence: float,
+        top_features: dict,
+        values: dict | None = None,
     ) -> dict:
         t0 = time.perf_counter()
-        prompt = build_prompt(flow, label, confidence, top_features)
+        prompt = build_prompt(flow, label, confidence, top_features, values)
         for backend in self._order():
             try:
                 text = self._call(backend, prompt)
                 if text:
+                    bad = ungrounded_numbers(
+                        text, _allowed_numbers(flow, confidence, top_features, values)
+                    )
+                    if bad:
+                        log.warning("reporter.ungrounded_numbers", numbers=bad)
+                        text += (
+                            "\n\n[Note: this report contains figures not found in "
+                            "the alert data: "
+                            + ", ".join(bad)
+                            + ". Verify before use.]"
+                        )
                     return {
                         "report": text,
                         "backend": backend,
+                        "ungrounded": bad,
                         "latency_ms": round((time.perf_counter() - t0) * 1000, 1),
                     }
             except Exception as exc:
@@ -217,8 +287,9 @@ class IncidentReporter:
                     hint="for Ollama: run `ollama pull " + self._ollama_model + "`",
                 )
         return {
-            "report": template_report(flow, label, confidence, top_features),
+            "report": template_report(flow, label, confidence, top_features, values),
             "backend": "template",
+            "ungrounded": [],
             "latency_ms": round((time.perf_counter() - t0) * 1000, 1),
         }
 

@@ -147,6 +147,7 @@ async def predict_flow(
             result.label,
             result.confidence,
             result.top_features,
+            result.feature_values,
         )
         result.report = rep["report"]
         result.report_backend = rep["backend"]

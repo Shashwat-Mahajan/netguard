@@ -67,12 +67,14 @@ class PredictionResult:
         "top_features",
         "report",
         "report_backend",
+        "feature_values",
     ]
 
     def __init__(self, **kwargs):
         self.top_features = {}
         self.report = ""
         self.report_backend = ""
+        self.feature_values = {}
         for k, v in kwargs.items():
             setattr(self, k, v)
 
@@ -229,6 +231,9 @@ class InferenceEngine:
             )
             if do_explain:
                 result.top_features = self._explain(vec[0], label_int)
+                result.feature_values = {
+                    k: float(getattr(flow, k, 0) or 0) for k in result.top_features
+                }
 
             with self._lock:
                 self._total += 1
