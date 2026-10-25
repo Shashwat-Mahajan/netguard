@@ -35,3 +35,8 @@ data/intel/
 .coverage 
 .coverage 
 data/suricata/
+*.pcapng 
+*.pcap
+*.pcapng
+data/suricata/
+data/intel/

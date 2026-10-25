@@ -103,6 +103,10 @@ class Settings(BaseSettings):
     thehive_min_severity: Literal["low", "medium", "high"] = "high"
     thehive_timeout_seconds: int = Field(default=5, ge=1, le=60)
 
+    # ── JA3 blocklist ──────────────────────────────────────────────
+    ja3_enabled: bool = True
+    ja3_url: str = "https://sslbl.abuse.ch/blacklist/ja3_fingerprints.csv"
+
     @field_validator("data_raw_dir", "data_processed_dir", "log_dir", mode="after")
     @classmethod
     def ensure_dirs_exist(cls, v: Path) -> Path:
