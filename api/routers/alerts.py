@@ -36,7 +36,7 @@ def unify_alerts(ml_rows: list[dict], rule_rows: list[dict], n: int) -> list[dic
     for r in rule_rows:
         out.append(
             {
-                "source": "signature",
+                "source": r.get("source", "signature"),
                 "id": r.get("alert_id", ""),
                 "timestamp": r.get("timestamp") or 0,
                 "rule": r.get("rule", ""),
