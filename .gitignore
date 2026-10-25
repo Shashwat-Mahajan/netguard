@@ -40,3 +40,4 @@ data/suricata/
 *.pcapng
 data/suricata/
 data/intel/
+data/zeek/
