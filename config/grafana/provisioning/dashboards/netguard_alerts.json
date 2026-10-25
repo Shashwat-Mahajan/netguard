@@ -1,0 +1,116 @@
+{
+  "title": "NetGuard Alerts and Explanations",
+  "uid": "netguard-alerts-v1",
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Signature alerts (1h)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "datasource": "ClickHouse",
+      "targets": [{
+        "rawSql": "SELECT count() FROM netguard.alerts WHERE timestamp >= now() - INTERVAL 1 HOUR",
+        "format": "table"
+      }],
+      "options": { "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "orange", "value": 1 },
+          { "color": "red", "value": 10 } ] } } }
+    },
+    {
+      "id": 2,
+      "title": "Threat-intel hits (24h)",
+      "type": "stat",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "datasource": "ClickHouse",
+      "targets": [{
+        "rawSql": "SELECT count() FROM netguard.alerts WHERE intel_hit = 1 AND timestamp >= now() - INTERVAL 24 HOUR",
+        "format": "table"
+      }],
+      "options": { "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "red", "value": 1 } ] } } }
+    },
+    {
+      "id": 3,
+      "title": "ML threats (1h)",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "datasource": "ClickHouse",
+      "targets": [{
+        "rawSql": "SELECT count() FROM netguard.flows WHERE is_threat = 1 AND timestamp >= now() - INTERVAL 1 HOUR",
+        "format": "table"
+      }],
+      "options": { "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "orange", "value": 1 },
+          { "color": "red", "value": 10 } ] } } }
+    },
+    {
+      "id": 4,
+      "title": "Alerts by rule",
+      "type": "piechart",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": "ClickHouse",
+      "targets": [{
+        "rawSql": "SELECT rule, count() AS count FROM netguard.alerts WHERE timestamp >= now() - INTERVAL 24 HOUR GROUP BY rule ORDER BY count DESC",
+        "format": "table"
+      }],
+      "options": { "pieType": "donut", "legendDisplayMode": "table", "legendPlacement": "right" }
+    },
+    {
+      "id": 5,
+      "title": "Signature alerts over time",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 4 },
+      "datasource": "ClickHouse",
+      "targets": [{
+        "rawSql": "SELECT toStartOfMinute(timestamp) AS time, rule, count() AS alerts FROM netguard.alerts WHERE timestamp >= now() - INTERVAL 6 HOUR GROUP BY time, rule ORDER BY time",
+        "format": "time_series"
+      }]
+    },
+    {
+      "id": 6,
+      "title": "Recent signature alerts",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+      "datasource": "ClickHouse",
+      "targets": [{
+        "rawSql": "SELECT timestamp, rule, severity, src_ip, dst_ip, flow_count, intel_hit, detail FROM netguard.alerts ORDER BY timestamp DESC LIMIT 50",
+        "format": "table"
+      }],
+      "fieldConfig": { "overrides": [
+        { "matcher": { "id": "byName", "options": "severity" },
+          "properties": [{ "id": "custom.displayMode", "value": "color-background" }] },
+        { "matcher": { "id": "byName", "options": "detail" },
+          "properties": [{ "id": "custom.width", "value": 420 }] }
+      ] }
+    },
+    {
+      "id": 7,
+      "title": "ML threats with SHAP explanation and report",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 12 },
+      "datasource": "ClickHouse",
+      "targets": [{
+        "rawSql": "SELECT timestamp, label, round(confidence, 3) AS confidence, src_ip, dst_ip, explanation AS top_features, report FROM netguard.flows WHERE is_threat = 1 ORDER BY timestamp DESC LIMIT 50",
+        "format": "table"
+      }],
+      "fieldConfig": { "overrides": [
+        { "matcher": { "id": "byName", "options": "top_features" },
+          "properties": [{ "id": "custom.width", "value": 380 }, { "id": "custom.cellOptions", "value": { "type": "auto", "wrapText": true } }] },
+        { "matcher": { "id": "byName", "options": "report" },
+          "properties": [{ "id": "custom.width", "value": 600 }, { "id": "custom.cellOptions", "value": { "type": "auto", "wrapText": true } }] }
+      ] }
+    }
+  ]
+}
