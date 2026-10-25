@@ -96,6 +96,13 @@ class Settings(BaseSettings):
     nvidia_nim_model: str = "meta/llama-3.1-8b-instruct"
     nvidia_nim_url: str = "https://integrate.api.nvidia.com/v1"
 
+    # ── TheHive (optional case management) ─────────────────────────
+    thehive_url: str = ""  # e.g. http://localhost:9001 ; empty = disabled
+    thehive_api_key: str = ""
+    thehive_org: str = ""  # optional X-Organisation header
+    thehive_min_severity: Literal["low", "medium", "high"] = "high"
+    thehive_timeout_seconds: int = Field(default=5, ge=1, le=60)
+
     @field_validator("data_raw_dir", "data_processed_dir", "log_dir", mode="after")
     @classmethod
     def ensure_dirs_exist(cls, v: Path) -> Path:

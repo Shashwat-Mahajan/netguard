@@ -1,0 +1,36 @@
+# Optional TheHive 5 stack. Start: docker compose -f docker-compose.thehive.yml up -d
+# UI: http://localhost:9001  (default login admin@thehive.local / secret: CHANGE IT
+# immediately, then create an analyst user and generate its API key).
+# Image tags/flags follow StrangeBee's docs; check them if startup fails.
+services:
+  cassandra:
+    image: cassandra:4.1
+    environment:
+      MAX_HEAP_SIZE: 512M
+      HEAP_NEWSIZE: 128M
+    volumes: [cassandra-data:/var/lib/cassandra]
+  elasticsearch:
+    image: elasticsearch:7.17.12
+    environment:
+      discovery.type: single-node
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+      xpack.security.enabled: "false"
+    volumes: [es-data:/usr/share/elasticsearch/data]
+  thehive:
+    image: strangebee/thehive:5.3
+    depends_on: [cassandra, elasticsearch]
+    ports: ["127.0.0.1:9001:9000"]
+    command:
+      - --secret
+      - ${THEHIVE_SECRET:?Set THEHIVE_SECRET in .env}
+      - --cql-hostnames
+      - cassandra
+      - --index-backend
+      - elasticsearch
+      - --es-hostnames
+      - elasticsearch
+    volumes: [thehive-data:/etc/thehive]
+volumes:
+  cassandra-data:
+  es-data:
+  thehive-data:

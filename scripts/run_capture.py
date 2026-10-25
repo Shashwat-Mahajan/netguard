@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from capture.pipeline import FlowPipeline, replay_pcap  # noqa: E402
 from config.logger import configure_logging, get_logger  # noqa: E402
 from config.settings import settings  # noqa: E402
+from streaming.thehive import TheHiveClient
 
 
 def main() -> int:
@@ -74,6 +75,10 @@ def main() -> int:
 
     intel = ThreatIntel.from_settings() if settings.intel_enabled else None
 
+    thehive = TheHiveClient.from_settings()
+    if thehive.enabled:
+        print(f"TheHive integration on: {settings.thehive_url}")
+
     producer = None
     if args.publish:
         from streaming.producer import FlowProducer
@@ -89,6 +94,7 @@ def main() -> int:
         rules=rules,
         alert_writer=ch_alert_writer,
         intel=intel,
+        thehive=thehive,
     )
 
     try:

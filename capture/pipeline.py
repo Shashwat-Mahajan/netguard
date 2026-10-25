@@ -2,10 +2,10 @@
 capture/pipeline.py
 Glue between capture and the rest of NetGuard.
 
-For every completed flow:  signature rules (+ threat intel) and predict ->
-ClickHouse (and optionally Kafka).
+For every completed flow:  signature rules (+ threat intel, TheHive) and predict ->
+ClickHouse (and optionally Kafka, TheHive).
 Degrades gracefully: no models -> flows are counted and dropped (rules still run),
-ClickHouse down -> the writers ignore them, Kafka/intel off -> skipped.
+ClickHouse down -> the writers ignore them, Kafka/intel/TheHive off -> skipped.
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ class FlowPipeline:
         rules=None,
         alert_writer=None,
         intel=None,
+        thehive=None,
     ) -> None:
         self._engine = engine
         self._writer = writer
@@ -41,6 +42,7 @@ class FlowPipeline:
         self._rules = rules
         self._alert_writer = alert_writer
         self._intel = intel
+        self._thehive = thehive
         self.seen = 0
         self.scored = 0
         self.threats = 0
@@ -88,6 +90,11 @@ class FlowPipeline:
             )
             if self._alert_writer is not None:
                 self._alert_writer.write(a)
+            if self._thehive is not None:
+                try:
+                    self._thehive.send_rule_alert(a)
+                except Exception as exc:
+                    log.warning("thehive.error", error=str(exc))
 
     def handle_flow(self, flow) -> None:
         self.seen += 1
@@ -104,6 +111,11 @@ class FlowPipeline:
         self.scored += 1
         if result.is_threat():
             self.threats += 1
+            if self._thehive is not None:
+                try:
+                    self._thehive.send_ml_alert(result)
+                except Exception as exc:
+                    log.warning("thehive.error", error=str(exc))
         if self._store is not None:
             self._store.add(result)
         if self._writer is not None:
@@ -121,6 +133,8 @@ class FlowPipeline:
         if self._rules is not None:
             s["rule_alerts"] = self.rule_alerts
             s["rules"] = dict(self.rule_counts)
+        if self._thehive is not None and self._thehive.enabled:
+            s["thehive"] = {"sent": self._thehive.sent, "failed": self._thehive.failed}
         return s
 
 
