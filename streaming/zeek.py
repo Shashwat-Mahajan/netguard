@@ -1,6 +1,8 @@
 """
 streaming/zeek.py
-Turns Zeek notice.log entries into NetGuard alerts (source='zeek').
+Turns Zeek logs into NetGuard data.
+  notice.log -> alerts (source='zeek')
+  conn.log   -> flows fed through a FlowPipeline (ML + rules)
 Missing files and odd entries are skipped, never fatal.
 """
 
@@ -12,7 +14,10 @@ from datetime import datetime
 from pathlib import Path
 
 from capture.rules import RuleAlert
-from capture.zeek_parser import ZeekNoticeParser
+from capture.zeek_parser import ZeekConnLogParser, ZeekNoticeParser
+from config.logger import get_logger
+
+log = get_logger(__name__)
 
 _SEVERITIES = ("high", "medium", "low")
 
@@ -79,3 +84,18 @@ def ingest_notices(path: str | Path, writer, restamp: bool = False) -> tuple[int
     for a in alerts:
         writer.write(a)
     return writer.written - before, len(alerts)
+
+
+def ingest_flows(path: str | Path, pipeline) -> int:
+    """Send every flow in a Zeek conn.log through `pipeline.handle_flow`.
+    A flow that makes the pipeline fail is logged and skipped.
+    Returns the number of flows handed to the pipeline."""
+    n = 0
+    for flow in ZeekConnLogParser().parse_file(path):
+        try:
+            pipeline.handle_flow(flow)
+        except Exception as exc:
+            log.error("zeek.flow_error", error=str(exc))
+            continue
+        n += 1
+    return n
