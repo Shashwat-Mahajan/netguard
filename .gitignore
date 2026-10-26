@@ -3,13 +3,24 @@ venv/
 __pycache__/
 *.pyc
 *.pyo
+
+# Secrets and local state (never commit)
 .env
+flow.json
+login.json
+chat.json
+data/auth.db
 
 # Data (too large for GitHub)
 data/raw/
 data/processed/*.npy
 data/processed/*.parquet
 data/processed/*.joblib
+data/intel/
+data/suricata/
+data/zeek/
+*.pcap
+*.pcapng
 
 # Logs
 logs/
@@ -22,22 +33,11 @@ data/research/*/results.json
 *.sql
 !config/clickhouse/init.sql
 
+# Test and coverage output
+htmlcov/
+.pytest_cache/
+.coverage
+
 # OS
 .DS_Store
 desktop.ini
-
-htmlcov/
-.pytest_cache/
-.coverageflow.json 
-login.json 
-
-data/intel/
-.coverage 
-.coverage 
-data/suricata/
-*.pcapng 
-*.pcap
-*.pcapng
-data/suricata/
-data/intel/
-data/zeek/
