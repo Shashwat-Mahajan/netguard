@@ -43,9 +43,10 @@ class ScoredBagging(FedXgbBagging):
             s["round"] = server_round
             s["boosting_rounds"] = bst.num_boosted_rounds()
             self.history.append(s)
+            rec = {k: round(v, 3) for k, v in s["recall"].items()}
             print(
                 f"[server] round {server_round}: acc={s['accuracy']:.4f} "
-                f"macroF1={s['macro_f1']:.4f} recall={ {k: round(v, 3) for k, v in s['recall'].items()} }"
+                f"macroF1={s['macro_f1']:.4f} recall={rec}"
             )
         return params, metrics
 
@@ -57,6 +58,7 @@ def main() -> int:
     ap.add_argument("--rounds", type=int, default=10)
     ap.add_argument("--local-rounds", type=int, default=5)
     ap.add_argument("--address", default="127.0.0.1:8080")
+    ap.add_argument("--tag", default="", help="suffix for output names")
     a = ap.parse_args()
 
     X_test, y_test = load_test()
@@ -76,12 +78,14 @@ def main() -> int:
         strategy=strategy,
     )
 
+    name = f"{a.mode}{a.tag}"
     FED_DIR.mkdir(parents=True, exist_ok=True)
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    out_dir = FED_DIR / a.mode
+    out_dir = FED_DIR / name
     out_dir.mkdir(parents=True, exist_ok=True)
     result = {
         "mode": a.mode,
+        "tag": a.tag,
         "clients": a.clients,
         "rounds": a.rounds,
         "local_rounds": a.local_rounds,
@@ -89,7 +93,7 @@ def main() -> int:
     }
     (out_dir / "results.json").write_text(json.dumps(result, indent=2))
     if strategy.final_model:
-        (MODELS_DIR / f"{a.mode}.json").write_bytes(strategy.final_model)
+        (MODELS_DIR / f"{name}.json").write_bytes(strategy.final_model)
     print(f"[server] saved {out_dir / 'results.json'}")
     return 0
 

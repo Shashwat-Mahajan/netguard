@@ -1,9 +1,9 @@
 """
 scripts/research/federated/compare.py
-Central vs federated (IID, non-IID) on the same CICIDS test set.
+Central vs federated (IID, non-IID, with and without sample weights) on the
+same CICIDS test set.
 
   python scripts/research/federated/compare.py
-Run run_federated.py for both modes first.
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ from models.xgboost_classifier import IntrusionClassifier  # noqa: E402
 from processor.feature_schema import FlowFeatures  # noqa: E402
 
 NAMES = [FlowFeatures.LABEL_NAMES[i] for i in range(5)]
+MODELS = ("iid", "iid_noweights", "noniid", "noniid_noweights")
 
 
 def metrics(y, pred) -> dict:
@@ -53,26 +54,26 @@ def main() -> int:
     clf.load(settings.data_processed_dir / "xgboost_cicids.joblib")
     results["central"] = metrics(y, clf._model.predict(X))
 
-    for mode in ("iid", "noniid"):
-        path = MODELS_DIR / f"{mode}.json"
+    for name in MODELS:
+        path = MODELS_DIR / f"{name}.json"
         if not path.is_file():
-            print(f"skipping {mode}: {path} not found")
+            print(f"skipping {name}: {path} not found")
             continue
         bst = xgb.Booster()
         bst.load_model(str(path))
         probs = bst.predict(xgb.DMatrix(X))
-        results[f"fed_{mode}"] = metrics(y, np.argmax(probs, axis=1))
-        results[f"fed_{mode}"]["trees"] = bst.num_boosted_rounds()
+        results[f"fed_{name}"] = metrics(y, np.argmax(probs, axis=1))
+        results[f"fed_{name}"]["trees"] = bst.num_boosted_rounds()
 
-    print(f"\n{'model':<12}{'accuracy':>10}{'macroF1':>10}")
+    print(f"\n{'model':<20}{'accuracy':>10}{'macroF1':>10}")
     for k, m in results.items():
-        print(f"{k:<12}{m['accuracy']:>10.4f}{m['macro_f1']:>10.4f}")
+        print(f"{k:<20}{m['accuracy']:>10.4f}{m['macro_f1']:>10.4f}")
 
     for title, key in (("RECALL", "recall"), ("PRECISION", "precision")):
         print(f"\n{title} per class")
-        print(f"{'model':<12}" + "".join(f"{n:>9}" for n in NAMES))
+        print(f"{'model':<20}" + "".join(f"{n:>9}" for n in NAMES))
         for k, m in results.items():
-            print(f"{k:<12}" + "".join(f"{v:>9.3f}" for v in m[key]))
+            print(f"{k:<20}" + "".join(f"{v:>9.3f}" for v in m[key]))
 
     FED_DIR.mkdir(parents=True, exist_ok=True)
     out = FED_DIR / "comparison.json"

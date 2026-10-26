@@ -3,6 +3,7 @@ scripts/research/federated/client.py
 One federated client. Normally started by run_federated.py.
 
   python scripts/research/federated/client.py --mode iid --cid 0
+  add --no-weights to train without inverse-frequency sample weights
 """
 
 from __future__ import annotations
@@ -32,14 +33,25 @@ OK = Status(code=Code.OK, message="OK")
 
 
 class XgbClient(fl.client.Client):
-    def __init__(self, mode: str, clients: int, cid: int, local_rounds: int) -> None:
+    def __init__(
+        self,
+        mode: str,
+        clients: int,
+        cid: int,
+        local_rounds: int,
+        use_weights: bool = True,
+    ) -> None:
         X_tr, y_tr, X_va, y_va = load_partition(mode, clients, cid)
         self.cid = cid
         self.local_rounds = local_rounds
         self.n_train = len(y_tr)
         self.n_val = len(y_va)
-        self.dtrain = xgb.DMatrix(X_tr, label=y_tr, weight=sample_weights(y_tr))
-        print(f"[client {cid}] {self.n_train:,} train rows, {self.n_val:,} val rows")
+        weight = sample_weights(y_tr) if use_weights else None
+        self.dtrain = xgb.DMatrix(X_tr, label=y_tr, weight=weight)
+        print(
+            f"[client {cid}] {self.n_train:,} train rows, {self.n_val:,} val rows, "
+            f"weights={'on' if use_weights else 'off'}"
+        )
 
     def get_parameters(self, ins: GetParametersIns) -> GetParametersRes:
         return GetParametersRes(
@@ -78,8 +90,11 @@ def main() -> int:
     ap.add_argument("--cid", type=int, required=True)
     ap.add_argument("--local-rounds", type=int, default=5)
     ap.add_argument("--address", default="127.0.0.1:8080")
+    ap.add_argument("--no-weights", action="store_true")
     a = ap.parse_args()
-    client = XgbClient(a.mode, a.clients, a.cid, a.local_rounds)
+    client = XgbClient(
+        a.mode, a.clients, a.cid, a.local_rounds, use_weights=not a.no_weights
+    )
     fl.client.start_client(server_address=a.address, client=client)
     return 0
 
