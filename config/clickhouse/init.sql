@@ -32,3 +32,21 @@ CREATE TABLE IF NOT EXISTS netguard.flows (
 ) ENGINE = MergeTree
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (timestamp, src_ip);
+
+CREATE TABLE IF NOT EXISTS netguard.alerts (
+    alert_id      String,
+    timestamp     DateTime,
+    source        LowCardinality(String),
+    rule          LowCardinality(String),
+    label         LowCardinality(String),
+    label_encoded Int8,
+    severity      LowCardinality(String),
+    src_ip        String,
+    dst_ip        String,
+    flow_count    UInt32,
+    detail        String,
+    intel         String DEFAULT '',
+    intel_hit     UInt8 DEFAULT 0
+) ENGINE = MergeTree
+PARTITION BY toYYYYMM(timestamp)
+ORDER BY (timestamp, src_ip);
