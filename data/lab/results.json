@@ -14,27 +14,27 @@
           1793470627.935556
         ]
       ],
-      "seconds": 14.7
+      "seconds": 15.7
     },
     "suricata_local": [
       [
         "suricata:9000002",
-        1793470627.988041,
+        1793470627.989987,
         "NETGUARD-TEST SYN scan (sid 9000002)"
       ],
       [
         "suricata:9000001",
-        1793470627.935849,
+        1793470627.935701,
         "NETGUARD-TEST SYN flood (sid 9000001)"
       ],
       [
         "suricata:9000002",
-        1793470627.982349,
+        1793470627.982901,
         "NETGUARD-TEST SYN scan (sid 9000002)"
       ],
       [
         "suricata:9000001",
-        1793470628.024004,
+        1793470627.987264,
         "NETGUARD-TEST SYN flood (sid 9000001)"
       ]
     ],
@@ -55,17 +55,17 @@
           1793471182.798457
         ]
       ],
-      "seconds": 121.5
+      "seconds": 130.3
     },
     "suricata_local": [
       [
         "suricata:9000002",
-        1793471182.754911,
+        1793471182.749193,
         "NETGUARD-TEST SYN scan (sid 9000002)"
       ],
       [
         "suricata:9000001",
-        1793471182.847709,
+        1793471182.79744,
         "NETGUARD-TEST SYN flood (sid 9000001)"
       ]
     ],
@@ -81,9 +81,64 @@
       "ml_threats": 0,
       "ml_anomalies": 0,
       "rule_alerts": [],
-      "seconds": 1.1
+      "seconds": 1.2
     },
     "suricata_local": [],
+    "suricata_et": []
+  },
+  "flood22": {
+    "attacker_first_packet": 1793476728.453781,
+    "netguard": {
+      "flows": 17024,
+      "ml_labels": {
+        "Benign": 17024
+      },
+      "ml_threats": 0,
+      "ml_anomalies": 0,
+      "rule_alerts": [
+        [
+          "syn_flood",
+          1793476735.825994
+        ],
+        [
+          "port_scan",
+          1793476761.012539
+        ]
+      ],
+      "seconds": 338.6
+    },
+    "suricata_local": [
+      [
+        "suricata:9000002",
+        1793476735.814746,
+        "NETGUARD-TEST SYN scan (sid 9000002)"
+      ],
+      [
+        "suricata:9000001",
+        1793476735.881325,
+        "NETGUARD-TEST SYN flood (sid 9000001)"
+      ],
+      [
+        "suricata:9000002",
+        1793476745.765126,
+        "NETGUARD-TEST SYN scan (sid 9000002)"
+      ],
+      [
+        "suricata:9000001",
+        1793476745.792002,
+        "NETGUARD-TEST SYN flood (sid 9000001)"
+      ],
+      [
+        "suricata:9000002",
+        1793476761.017474,
+        "NETGUARD-TEST SYN scan (sid 9000002)"
+      ],
+      [
+        "suricata:9000001",
+        1793476761.038043,
+        "NETGUARD-TEST SYN flood (sid 9000001)"
+      ]
+    ],
     "suricata_et": []
   }
 }

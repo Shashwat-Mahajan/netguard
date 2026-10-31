@@ -8,8 +8,10 @@ Rules (thresholds come from settings):
   syn_flood  - one source sends many half-open flows to ONE port of one host
   host_sweep - one source touches many distinct hosts
 A half-open flow has a SYN, no FIN/PSH, at most 2 forward packets and at most
-1 reply. It covers unanswered SYNs and SYNs answered by SYN-ACK or RST (real
-floods against open or closed ports).
+1 reply. It covers unanswered SYNs and SYNs answered by SYN-ACK or RST.
+Flows that look like a server reply (source port < 1024, destination port
+>= 1024) are ignored by port_scan: when the first packet seen is the server's,
+the flow direction is reversed and would look like a scan.
 Time is the flow's own timestamp, so pcap replay and live capture behave alike.
 """
 
@@ -59,6 +61,13 @@ def _half_open(flow) -> bool:
     )
 
 
+def _reply_like(flow) -> bool:
+    sport = getattr(flow, "src_port", None)
+    if sport is None:
+        return False
+    return sport < 1024 <= flow.dst_port
+
+
 class SignatureEngine:
     def __init__(
         self,
@@ -99,11 +108,12 @@ class SignatureEngine:
         if not src or not dst:
             return []
         half_open = _half_open(flow)
+        reply = _reply_like(flow)
 
         dq = self._events.setdefault(src, deque(maxlen=_MAX_EVENTS_PER_SRC))
         while dq and dq[0][0] < ts - self.window:
             dq.popleft()
-        dq.append((ts, dst, flow.dst_port, half_open))
+        dq.append((ts, dst, flow.dst_port, half_open, reply))
 
         if len(self._events) > _CLEANUP_AT:
             self._events = {k: v for k, v in self._events.items() if v}
@@ -111,7 +121,7 @@ class SignatureEngine:
         same_host = [e for e in dq if e[1] == dst]
         alerts: list[RuleAlert] = []
 
-        ports = {e[2] for e in same_host}
+        ports = {e[2] for e in same_host if not e[4]}
         if len(ports) >= self.portscan_ports and not self._cooling(
             ("port_scan", src, dst), ts
         ):

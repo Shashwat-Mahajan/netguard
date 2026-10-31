@@ -32,7 +32,7 @@ from streaming.suricata import parse_eve_file  # noqa: E402
 LAB = ROOT / "data" / "lab"
 OUT = LAB / "out"
 ATTACKER = "192.168.29.131"
-PCAPS = ("scan", "flood", "sweep")
+PCAPS = ("scan", "flood", "sweep", "flood22", "flood8080", "connect")
 ET_RULES = ROOT / "data" / "et" / "suricata.rules"
 LOCAL_RULES = ROOT / "config" / "suricata" / "local.rules"
 
