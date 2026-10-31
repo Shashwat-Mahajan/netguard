@@ -1,0 +1,89 @@
+{
+  "scan": {
+    "attacker_first_packet": 1793470596.320342,
+    "netguard": {
+      "flows": 1051,
+      "ml_labels": {
+        "Benign": 1051
+      },
+      "ml_threats": 0,
+      "ml_anomalies": 0,
+      "rule_alerts": [
+        [
+          "port_scan",
+          1793470627.935556
+        ]
+      ],
+      "seconds": 14.7
+    },
+    "suricata_local": [
+      [
+        "suricata:9000002",
+        1793470627.988041,
+        "NETGUARD-TEST SYN scan (sid 9000002)"
+      ],
+      [
+        "suricata:9000001",
+        1793470627.935849,
+        "NETGUARD-TEST SYN flood (sid 9000001)"
+      ],
+      [
+        "suricata:9000002",
+        1793470627.982349,
+        "NETGUARD-TEST SYN scan (sid 9000002)"
+      ],
+      [
+        "suricata:9000001",
+        1793470628.024004,
+        "NETGUARD-TEST SYN flood (sid 9000001)"
+      ]
+    ],
+    "suricata_et": []
+  },
+  "flood": {
+    "attacker_first_packet": 1793471178.410784,
+    "netguard": {
+      "flows": 7641,
+      "ml_labels": {
+        "Benign": 7641
+      },
+      "ml_threats": 0,
+      "ml_anomalies": 0,
+      "rule_alerts": [
+        [
+          "syn_flood",
+          1793471182.798457
+        ]
+      ],
+      "seconds": 121.5
+    },
+    "suricata_local": [
+      [
+        "suricata:9000002",
+        1793471182.754911,
+        "NETGUARD-TEST SYN scan (sid 9000002)"
+      ],
+      [
+        "suricata:9000001",
+        1793471182.847709,
+        "NETGUARD-TEST SYN flood (sid 9000001)"
+      ]
+    ],
+    "suricata_et": []
+  },
+  "sweep": {
+    "attacker_first_packet": 1793471410.022867,
+    "netguard": {
+      "flows": 54,
+      "ml_labels": {
+        "Benign": 54
+      },
+      "ml_threats": 0,
+      "ml_anomalies": 0,
+      "rule_alerts": [],
+      "seconds": 1.1
+    },
+    "suricata_local": [],
+    "suricata_et": []
+  }
+}

@@ -42,3 +42,5 @@ htmlcov/
 .DS_Store
 desktop.inidata/research/federated/partitions/
 data/research/federated/models/
+data/et/
+data/lab/out/
