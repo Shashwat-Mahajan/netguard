@@ -20,11 +20,42 @@ def _f(ts, src="10.9.9.9", dst="10.0.0.9", dport=80, syn_only=True):
     )
 
 
+def _answered(ts, dport=80, src="10.9.9.9", dst="10.0.0.9"):
+    """Half-open flow as seen in a real flood: SYN, SYN-ACK, attacker RST."""
+    return SimpleNamespace(
+        timestamp=ts,
+        src_ip=src,
+        dst_ip=dst,
+        dst_port=dport,
+        syn_flag_count=2,
+        ack_flag_count=1,
+        rst_flag_count=1,
+        fin_flag_count=0,
+        psh_flag_count=0,
+        fwd_packet_count=2,
+        bwd_packet_count=1,
+    )
+
+
 def test_syn_flood_fires_once():
     e = SignatureEngine(synflood_flows=200)
     alerts = [a for i in range(1000) for a in e.observe(_f(100 + i * 0.001))]
     assert [a.rule for a in alerts] == ["syn_flood"]
     assert alerts[0].src_ip == "10.9.9.9" and alerts[0].label == "DoS"
+
+
+def test_flood_against_open_port_is_detected():
+    e = SignatureEngine(synflood_flows=200)
+    alerts = [a for i in range(1000) for a in e.observe(_answered(100 + i * 0.001))]
+    assert [a.rule for a in alerts] == ["syn_flood"]
+
+
+def test_scan_of_answered_ports_is_not_a_flood():
+    e = SignatureEngine()
+    alerts = [
+        a for p in range(1, 301) for a in e.observe(_answered(100 + p * 0.01, dport=p))
+    ]
+    assert "syn_flood" not in [a.rule for a in alerts]
 
 
 def test_port_scan_fires_but_not_flood():

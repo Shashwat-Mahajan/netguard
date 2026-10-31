@@ -5,8 +5,11 @@ Catches what per-flow ML cannot: attacks defined by a pattern across many flows.
 
 Rules (thresholds come from settings):
   port_scan  - one source hits many distinct ports on one host
-  syn_flood  - one source sends many SYN-only flows to one host
+  syn_flood  - one source sends many half-open flows to ONE port of one host
   host_sweep - one source touches many distinct hosts
+A half-open flow has a SYN, no FIN/PSH, at most 2 forward packets and at most
+1 reply. It covers unanswered SYNs and SYNs answered by SYN-ACK or RST (real
+floods against open or closed ports).
 Time is the flow's own timestamp, so pcap replay and live capture behave alike.
 """
 
@@ -41,6 +44,19 @@ class RuleAlert:
     def __post_init__(self) -> None:
         if not self.alert_id:
             self.alert_id = str(uuid.uuid4())
+
+
+def _half_open(flow) -> bool:
+    if flow.syn_flag_count < 1:
+        return False
+    if flow.ack_flag_count == 0 and flow.bwd_packet_count == 0:
+        return True  # classic unanswered SYN
+    return (
+        getattr(flow, "fin_flag_count", 0) == 0
+        and getattr(flow, "psh_flag_count", 0) == 0
+        and getattr(flow, "fwd_packet_count", 99) <= 2
+        and flow.bwd_packet_count <= 1
+    )
 
 
 class SignatureEngine:
@@ -82,16 +98,12 @@ class SignatureEngine:
         src, dst = flow.src_ip, flow.dst_ip
         if not src or not dst:
             return []
-        syn_only = (
-            flow.syn_flag_count >= 1
-            and flow.ack_flag_count == 0
-            and flow.bwd_packet_count == 0
-        )
+        half_open = _half_open(flow)
 
         dq = self._events.setdefault(src, deque(maxlen=_MAX_EVENTS_PER_SRC))
         while dq and dq[0][0] < ts - self.window:
             dq.popleft()
-        dq.append((ts, dst, flow.dst_port, syn_only))
+        dq.append((ts, dst, flow.dst_port, half_open))
 
         if len(self._events) > _CLEANUP_AT:
             self._events = {k: v for k, v in self._events.items() if v}
@@ -117,7 +129,8 @@ class SignatureEngine:
                 )
             )
 
-        syns = sum(1 for e in same_host if e[3])
+        dport = flow.dst_port
+        syns = sum(1 for e in same_host if e[3] and e[2] == dport)
         if syns >= self.synflood_flows and not self._cooling(
             ("syn_flood", src, dst), ts
         ):
@@ -130,7 +143,8 @@ class SignatureEngine:
                     src,
                     dst,
                     syns,
-                    f"{syns} SYN-only flows to {dst} within {self.window:g}s",
+                    f"{syns} half-open flows to {dst}:{dport} within "
+                    f"{self.window:g}s",
                     ts,
                 )
             )
