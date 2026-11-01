@@ -1,0 +1,200 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: netguard
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clickhouse-init
+  namespace: netguard
+data:
+  init.sql: |
+    CREATE DATABASE IF NOT EXISTS netguard;
+
+    CREATE TABLE IF NOT EXISTS netguard.flows (
+        flow_id String, src_ip String, dst_ip String,
+        src_port UInt16, dst_port UInt16, protocol UInt8,
+        timestamp DateTime, duration Float64,
+        fwd_packet_count UInt32, bwd_packet_count UInt32,
+        total_fwd_bytes UInt64, total_bwd_bytes UInt64,
+        flow_bytes_per_sec Float64, flow_packets_per_sec Float64,
+        syn_flag_count UInt32, fin_flag_count UInt32,
+        rst_flag_count UInt32, psh_flag_count UInt32,
+        label LowCardinality(String), label_encoded Int8,
+        confidence Float32, is_anomaly UInt8, anomaly_score Float32,
+        is_threat UInt8, inference_ms Float32,
+        class_probs String DEFAULT '', explanation String DEFAULT '',
+        report String DEFAULT ''
+    ) ENGINE = MergeTree
+    PARTITION BY toYYYYMM(timestamp)
+    ORDER BY (timestamp, src_ip);
+
+    CREATE TABLE IF NOT EXISTS netguard.alerts (
+        alert_id String, timestamp DateTime,
+        source LowCardinality(String), rule LowCardinality(String),
+        label LowCardinality(String), label_encoded Int8,
+        severity LowCardinality(String), src_ip String, dst_ip String,
+        flow_count UInt32, detail String,
+        intel String DEFAULT '', intel_hit UInt8 DEFAULT 0
+    ) ENGINE = MergeTree
+    PARTITION BY toYYYYMM(timestamp)
+    ORDER BY (timestamp, src_ip);
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clickhouse
+  namespace: netguard
+spec:
+  selector:
+    app: clickhouse
+  ports:
+    - name: native
+      port: 9000
+      targetPort: 9000
+    - name: http
+      port: 8123
+      targetPort: 8123
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: clickhouse
+  namespace: netguard
+spec:
+  serviceName: clickhouse
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clickhouse
+  template:
+    metadata:
+      labels:
+        app: clickhouse
+    spec:
+      containers:
+        - name: clickhouse
+          image: clickhouse/clickhouse-server:24.3-alpine
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CLICKHOUSE_DB
+              value: netguard
+            - name: CLICKHOUSE_USER
+              value: netguard
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: netguard-secrets
+                  key: clickhouse-password
+            - name: CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT
+              value: "1"
+          ports:
+            - containerPort: 9000
+            - containerPort: 8123
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 8123
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: 512Mi
+            limits:
+              memory: 1536Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/clickhouse
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: init
+          configMap:
+            name: clickhouse-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: netguard-api
+  namespace: netguard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: netguard-api
+  template:
+    metadata:
+      labels:
+        app: netguard-api
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: api
+          image: netguard-api:local
+          imagePullPolicy: Never
+          env:
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: netguard-secrets
+                  key: secret-key
+            - name: CLICKHOUSE_HOST
+              value: clickhouse
+            - name: CLICKHOUSE_PORT
+              value: "9000"
+            - name: CLICKHOUSE_USER
+              value: netguard
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: netguard-secrets
+                  key: clickhouse-password
+          ports:
+            - containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: 512Mi
+            limits:
+              memory: 1536Mi
+          volumeMounts:
+            - name: models
+              mountPath: /app/data/processed
+              readOnly: true
+      volumes:
+        - name: models
+          hostPath:
+            path: /mnt/d/netguard/data/processed
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: netguard-api
+  namespace: netguard
+spec:
+  selector:
+    app: netguard-api
+  ports:
+    - port: 8000
+      targetPort: 8000

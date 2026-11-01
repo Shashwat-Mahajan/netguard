@@ -46,3 +46,4 @@ data/et/
 data/lab/out/
 mlruns/
 mlflow.db
+data/*.tar
