@@ -2,10 +2,10 @@
 capture/pipeline.py
 Glue between capture and the rest of NetGuard.
 
-For every completed flow:  signature rules (+ threat intel, TheHive) and predict ->
-ClickHouse (and optionally Kafka, TheHive).
+For every completed flow:  signature rules (+ threat intel, TheHive, SOAR) and
+predict -> ClickHouse (and optionally Kafka, TheHive).
 Degrades gracefully: no models -> flows are counted and dropped (rules still run),
-ClickHouse down -> the writers ignore them, Kafka/intel/TheHive off -> skipped.
+ClickHouse down -> the writers ignore them, Kafka/intel/TheHive/SOAR off -> skipped.
 """
 
 from __future__ import annotations
@@ -33,6 +33,7 @@ class FlowPipeline:
         alert_writer=None,
         intel=None,
         thehive=None,
+        soar=None,
     ) -> None:
         self._engine = engine
         self._writer = writer
@@ -43,6 +44,7 @@ class FlowPipeline:
         self._alert_writer = alert_writer
         self._intel = intel
         self._thehive = thehive
+        self._soar = soar
         self.seen = 0
         self.scored = 0
         self.threats = 0
@@ -95,6 +97,11 @@ class FlowPipeline:
                     self._thehive.send_rule_alert(a)
                 except Exception as exc:
                     log.warning("thehive.error", error=str(exc))
+            if self._soar is not None:
+                try:
+                    self._soar.send_rule_alert(a)
+                except Exception as exc:
+                    log.warning("soar.error", error=str(exc))
 
     def handle_flow(self, flow) -> None:
         self.seen += 1
@@ -135,6 +142,8 @@ class FlowPipeline:
             s["rules"] = dict(self.rule_counts)
         if self._thehive is not None and self._thehive.enabled:
             s["thehive"] = {"sent": self._thehive.sent, "failed": self._thehive.failed}
+        if self._soar is not None and self._soar.enabled:
+            s["soar"] = {"sent": self._soar.sent, "failed": self._soar.failed}
         return s
 
 

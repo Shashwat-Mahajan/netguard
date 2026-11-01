@@ -20,7 +20,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from capture.pipeline import FlowPipeline, replay_pcap  # noqa: E402
 from config.logger import configure_logging, get_logger  # noqa: E402
 from config.settings import settings  # noqa: E402
-from streaming.thehive import TheHiveClient
+from streaming.shuffle import SoarClient  # noqa: E402
+from streaming.thehive import TheHiveClient  # noqa: E402
 
 
 def main() -> int:
@@ -79,6 +80,10 @@ def main() -> int:
     if thehive.enabled:
         print(f"TheHive integration on: {settings.thehive_url}")
 
+    soar = SoarClient.from_settings()
+    if soar.enabled:
+        print(f"SOAR webhook on: {settings.soar_webhook_url}")
+
     producer = None
     if args.publish:
         from streaming.producer import FlowProducer
@@ -95,6 +100,7 @@ def main() -> int:
         alert_writer=ch_alert_writer,
         intel=intel,
         thehive=thehive,
+        soar=soar,
     )
 
     try:

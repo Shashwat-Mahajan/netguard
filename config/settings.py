@@ -1,6 +1,6 @@
 """
 config/settings.py
-Central configuration — loaded once at startup via pydantic-settings.
+Central configuration - loaded once at startup via pydantic-settings.
 All values can be overridden by environment variables or a .env file.
 """
 
@@ -21,55 +21,55 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # ── Application ────────────────────────────────────────────────
+    # -- Application --
     app_env: Literal["development", "production"] = "development"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     secret_key: str = Field(default="insecure-dev-key", min_length=16)
 
-    # ── CORS ───────────────────────────────────────────────────────
+    # -- CORS --
     cors_origins: str = "http://localhost:3000,http://localhost:8000"
 
-    # ── Capture ────────────────────────────────────────────────────
+    # -- Capture --
     capture_interface: str = "eth0"
     capture_flow_timeout: int = Field(default=120, ge=10, le=3600)
     capture_max_packets: int = Field(default=0, ge=0)  # 0 = unlimited
 
-    # ── Data paths ─────────────────────────────────────────────────
+    # -- Data paths --
     data_raw_dir: Path = Path("./data/raw")
     data_processed_dir: Path = Path("./data/processed")
     log_dir: Path = Path("./logs")
     zeek_log_dir: Path = Path("/opt/zeek/logs/current")
 
-    # ── API ────────────────────────────────────────────────────────
+    # -- API --
     api_host: str = "0.0.0.0"
     api_port: int = Field(default=8000, ge=1024, le=65535)
     api_workers: int = Field(default=4, ge=1, le=32)
 
-    # ── Kafka / Redpanda (Phase 3) ─────────────────────────────────
+    # -- Kafka / Redpanda --
     kafka_bootstrap_servers: str = ""
     kafka_topic_traffic: str = "netguard.traffic"
     kafka_topic_alerts: str = "netguard.alerts"
 
-    # ── ClickHouse ─────────────────────────────────────────────────
+    # -- ClickHouse --
     clickhouse_host: str = "localhost"
     clickhouse_port: int = 9000
     clickhouse_db: str = "netguard"
     clickhouse_user: str = "netguard"
     clickhouse_password: str = ""
 
-    # ── Auth ───────────────────────────────────────────────────────
+    # -- Auth --
     auth_db_path: Path = Path("./data/auth.db")
     jwt_expire_minutes: int = Field(default=60, ge=5, le=1440)
     # Optional: creates the first admin at startup if it doesn't exist yet.
     admin_username: str = ""
     admin_password: str = ""
 
-    # ── Rate limiting ──────────────────────────────────────────────
+    # -- Rate limiting --
     rate_limit_enabled: bool = True
     rate_limit_login: str = "5/minute"
     rate_limit_predict: str = "60/minute"
 
-    # ── Signature rules ────────────────────────────────────────────
+    # -- Signature rules --
     rules_enabled: bool = True
     rule_window_seconds: int = Field(default=10, ge=1, le=600)
     rule_portscan_ports: int = Field(default=50, ge=2)
@@ -77,7 +77,7 @@ class Settings(BaseSettings):
     rule_sweep_hosts: int = Field(default=50, ge=2)
     rule_cooldown_seconds: int = Field(default=60, ge=1)
 
-    # ── Threat intel ───────────────────────────────────────────────
+    # -- Threat intel --
     intel_enabled: bool = True
     intel_dir: Path = Path("./data/intel")
     intel_refresh_hours: int = Field(default=12, ge=1)
@@ -86,7 +86,7 @@ class Settings(BaseSettings):
     abuseipdb_api_key: str = ""
     otx_api_key: str = ""
 
-    # ── LLM incident reports ───────────────────────────────────────
+    # -- LLM incident reports --
     # auto = Ollama if running, else NVIDIA NIM if a key is set, else template
     llm_backend: Literal["auto", "ollama", "nim", "template"] = "auto"
     llm_timeout_seconds: int = Field(default=120, ge=5, le=600)
@@ -96,16 +96,21 @@ class Settings(BaseSettings):
     nvidia_nim_model: str = "meta/llama-3.1-8b-instruct"
     nvidia_nim_url: str = "https://integrate.api.nvidia.com/v1"
 
-    # ── TheHive (optional case management) ─────────────────────────
+    # -- TheHive (optional case management) --
     thehive_url: str = ""  # e.g. http://localhost:9001 ; empty = disabled
     thehive_api_key: str = ""
     thehive_org: str = ""  # optional X-Organisation header
     thehive_min_severity: Literal["low", "medium", "high"] = "high"
     thehive_timeout_seconds: int = Field(default=5, ge=1, le=60)
 
-    # ── JA3 blocklist ──────────────────────────────────────────────
+    # -- JA3 blocklist --
     ja3_enabled: bool = True
     ja3_url: str = "https://sslbl.abuse.ch/blacklist/ja3_fingerprints.csv"
+
+    # -- SOAR webhook (Shuffle-compatible; empty URL = disabled) --
+    soar_webhook_url: str = ""
+    soar_min_severity: Literal["low", "medium", "high"] = "high"
+    soar_timeout_seconds: int = Field(default=5, ge=1, le=60)
 
     @field_validator("data_raw_dir", "data_processed_dir", "log_dir", mode="after")
     @classmethod
@@ -132,5 +137,5 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
-# ── Singleton ──────────────────────────────────────────────────────────────────
+# -- Singleton --
 settings = Settings()
