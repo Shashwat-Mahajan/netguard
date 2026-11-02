@@ -1,121 +1,64 @@
-# NetGuard — AI-Powered Network Intrusion Detection System
+# NetGuard: Explainable Hybrid Network Intrusion Detection
 
-[![Paper](https://img.shields.io/badge/arXiv-preprint-red)](https://arxiv.org/abs/PLACEHOLDER)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.12-blue)](https://python.org)
+Flow features from packet captures (Scapy, Zeek) go into a fixed 39-feature
+schema, then an XGBoost 5-class classifier and an Isolation Forest, with SHAP
+explanations and LLM incident reports. Signature rules, Suricata, Zeek notices,
+JA3 blocklists and threat intel run alongside the ML. Served with FastAPI,
+stored in ClickHouse, monitored with Prometheus and Grafana.
 
-> Explainable Federated Network Intrusion Detection using XGBoost, Isolation Forest, SHAP, and NVIDIA NIM LLM Triage
+## Results (measured)
 
-## Key Results
+| Experiment | Result |
+|---|---|
+| Central XGBoost, CICIDS2017 test set | accuracy 0.9987, macro-F1 0.927 |
+| Federated (Flower, 5 clients, IID), raw | macro-F1 0.586 |
+| Federated, non-IID (Dirichlet 0.5), raw | macro-F1 0.591 |
+| Federated, no sample weights + per-class bias calibration | macro-F1 0.852 (best case, bias fitted on pooled validation data) |
 
-| Method | Dataset | Macro F1 |
-|--------|---------|----------|
-| XGBoost (proposed) | NSL-KDD | **0.9717** |
-| XGBoost (proposed) | CICIDS2017 | **0.9159** |
-| Federated XGBoost (3 nodes) | NSL-KDD | **0.9730** |
-| Random Forest (baseline) | NSL-KDD | 0.9574 |
-| MLP (baseline) | NSL-KDD | 0.8765 |
+Real attacks in an isolated two-VM lab (nmap, hping3), one run each:
 
-## Architecture
-Scapy/Zeek → Feature Extraction (39 features)
-→ XGBoost Classifier (5 attack classes)
-→ Isolation Forest (zero-day detection)
-→ SHAP Explainability (11ms per flow)
-→ NVIDIA NIM LLM (incident report in 2.5s)
-→ FastAPI (50 req/sec) → ClickHouse → Grafana
+| Attack | ML | Signature rules | Suricata (ET Open) |
+|---|---|---|---|
+| SYN scan | missed (all Benign) | detected | no alert |
+| SYN flood, 3 ports | missed (all Benign) | detected | no alert |
 
-## Project Structure
-netguard/
-├── capture/          # Scapy packet capture + Zeek log parser
-├── processor/        # Dataset loaders (NSL-KDD, CICIDS2017) + preprocessor
-├── models/           # XGBoost classifier + Isolation Forest + SHAP
-├── streaming/        # Kafka producer/consumer + ClickHouse writer
-├── api/              # FastAPI REST + WebSocket endpoints
-├── scripts/
-│   ├── ingest_data.py        # Phase 1: data ingestion
-│   ├── train_model.py        # Phase 2: model training
-│   ├── test_phase3.py        # Phase 3: API tests
-│   └── research/
-│       ├── r1_baselines.py   # Baseline comparisons
-│       ├── r2_cicids.py      # CICIDS2017 evaluation
-│       ├── r3_federated.py   # Federated learning
-│       ├── r4_nim_reporter.py # NVIDIA NIM incident reporter
-│       └── r5_ablation.py    # Ablation study
-├── config/           # Settings, logging, Prometheus
-├── docker/           # Dockerfiles for API and Zeek
-├── paper/            # Research paper (LaTeX)
-└── docker-compose.phase4.yml
+The CICIDS-trained model does not transfer to real lab traffic. See the
+documents below for method and limitations.
 
-## Quick Start
+## Documents
 
-```bash
-# 1. Clone and setup
-git clone https://github.com/YOUR_USERNAME/netguard
-cd netguard
-python3.12 -m venv venv && source venv/bin/activate
+- [Federated experiment](scripts/research/federated/README.md)
+- [Real-attack lab](docs/lab_results.md)
+- [Phase 6: MLflow, k3s, SOAR](docs/phase6.md)
+
+## Quick start (Windows)
+
+```cmd
+python -m venv venv
+venv\Scripts\activate.bat
 pip install -r requirements.txt
-
-# 2. Download dataset
-bash scripts/download_dataset.sh nslkdd
-
-# 3. Ingest data
-python3 scripts/ingest_data.py --dataset nslkdd
-
-# 4. Train models
-python3 scripts/train_model.py --dataset nslkdd
-
-# 5. Start API
-uvicorn api.main:app --host 0.0.0.0 --port 8000
-
-# 6. Start dashboard (Docker required)
+copy .env.example .env
 docker compose -f docker-compose.phase4.yml up -d
-# Open http://localhost:3000 (admin/netguard)
+python scripts\train_model.py --dataset cicids
+uvicorn api.main:app --host 0.0.0.0 --port 8000
 ```
 
-## Research Phases
+Set `CLICKHOUSE_PASSWORD` and `GRAFANA_ADMIN_PASSWORD` in `.env` first.
 
-| Phase | Script | Output |
-|-------|--------|--------|
-| R1 — Baseline comparisons | `r1_baselines.py` | Table 2, Figures 2-6 |
-| R2 — CICIDS2017 + cross-dataset | `r2_cicids.py` | Table 3, Figures 7-8 |
-| R3 — Federated learning | `r3_federated.py` | Table 4, Figures 9-10 |
-| R4 — NVIDIA NIM reporter | `r4_nim_reporter.py` | Table 5, Figure 11 |
-| R5 — Ablation study | `r5_ablation.py` | Tables 6-7, Figures 12-13 |
+## Layout
 
-## Environment Variables
+capture/ (sniffer, rules, Zeek parser), processor/, models/, streaming/
+(ClickHouse, Suricata, JA3, intel, TheHive, SOAR webhook), api/ (FastAPI,
+JWT/API-key auth), config/, docker/, deploy/k3s/, scripts/, scripts/research/,
+docs/, tests/.
 
-```bash
-cp .env.example .env
-# Edit .env:
-CAPTURE_INTERFACE=eth0
-NVIDIA_NIM_API_KEY=nvapi-...
-NVIDIA_NIM_MODEL=meta/llama-3.1-8b-instruct
-```
+## Honest limitations
 
-## Tech Stack
-
-- **ML**: XGBoost, Isolation Forest, SHAP, Flower (federated)
-- **API**: FastAPI, Uvicorn, WebSocket
-- **Storage**: ClickHouse, Prometheus
-- **Dashboard**: Grafana OSS
-- **Capture**: Scapy, Zeek
-- **LLM**: NVIDIA NIM (Llama-3.1-8b-instruct)
-- **Infra**: Docker, GitHub Actions
-
-## Citation
-
-If you use this work, please cite:
-
-```bibtex
-@article{mahajan2025netguard,
-  title={NetGuard: Explainable Federated Network Intrusion Detection
-         Using Gradient Boosting, Isolation Forest, and LLM-Augmented Alert Triage},
-  author={Mahajan, Shashwat},
-  journal={arXiv preprint arXiv:PLACEHOLDER},
-  year={2025}
-}
-```
+- ML trained on CICIDS2017 misses real nmap/hping3 attacks; the rules catch them.
+- Lab results are one run per attack, no detection rates.
+- Full Shuffle was not run; SOAR is a webhook sender plus a small local receiver.
+- Runs locally; the k3s setup is a single-node lab.
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT, see [LICENSE](LICENSE).
